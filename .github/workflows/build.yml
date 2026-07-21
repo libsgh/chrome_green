@@ -1,0 +1,205 @@
+name: Build And Release
+
+# Manual build workflow: dispatch with a version -> build all arches -> package.
+# build_mode=release: also publish a GitHub Release (ChromeGreen_v*.zip); release
+#   notes are filled in manually on the GitHub web UI.
+# build_mode=debug: only upload per-arch build artifacts (version.dll) for user
+#   testing, no Release is created.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version (SemVer, e.g. 2.0.0 or 2.0.0-alpha.1)"
+        required: true
+      build_mode:
+        description: "Build mode"
+        required: false
+        default: "release"
+        type: choice
+        options:
+          - release
+          - debug
+
+permissions:
+  contents: write # checkout, push version.h, create GitHub Release
+  id-token: write # attest-build-provenance
+  attestations: write
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - name: build_x86
+            arch: x86
+          - name: build_x64
+            arch: x64
+          - name: build_arm64
+            arch: arm64
+    name: ${{ matrix.name }}
+    runs-on: windows-2025
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v7
+        with:
+          submodules: "true"
+
+      - name: Validate & apply version
+        shell: bash
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
+            echo "::error::Invalid version '$VERSION'. Expected SemVer like 1.2.3 or 1.2.3-alpha.1" >&2
+            exit 1
+          fi
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          BUILD_MODE="${{ github.event.inputs.build_mode }}"
+          if [ "$BUILD_MODE" = "debug" ]; then
+            FULL_VERSION="${VERSION}-${SHORT_SHA}"
+            CORE="${VERSION%%-*}"
+            PRE="${VERSION#*-}"
+            if [ "$PRE" = "$VERSION" ]; then
+              PRE_SUFFIX="-${SHORT_SHA}"
+            else
+              PRE_SUFFIX="-${PRE}-${SHORT_SHA}"
+            fi
+          else
+            FULL_VERSION="$VERSION"
+            CORE="${VERSION%%-*}"
+            PRE="${VERSION#*-}"
+            if [ "$PRE" = "$VERSION" ]; then PRE_SUFFIX=""; else PRE_SUFFIX="-$PRE"; fi
+          fi
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "FULL_VERSION=$FULL_VERSION" >> $GITHUB_ENV
+          echo "SHORT_SHA=$SHORT_SHA" >> $GITHUB_ENV
+          echo "ARTIFACT_NAME=version-${{ matrix.arch }}-${SHORT_SHA}" >> $GITHUB_ENV
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CORE"
+          sed -i 's/#define RELEASE_VER_MAIN .*/#define RELEASE_VER_MAIN '"$MAJOR"'/' src/version.h
+          sed -i 's/#define RELEASE_VER_SUB .*/#define RELEASE_VER_SUB '"$MINOR"'/' src/version.h
+          sed -i 's/#define RELEASE_VER_FIX .*/#define RELEASE_VER_FIX '"$PATCH"'/' src/version.h
+          sed -i 's|#define RELEASE_VER_PRE_SUFFIX .*|#define RELEASE_VER_PRE_SUFFIX "'"$PRE_SUFFIX"'"|' src/version.h
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+
+      - name: Build Web Frontend
+        shell: bash
+        run: cd web && npm ci && npm run build && cd ..
+
+      - name: Embed Web Content
+        shell: bash
+        run: node scripts/embed.mjs
+
+      - name: Set CLANG_BIN
+        shell: bash
+        run: echo "CLANG_BIN=$(dirname "$(where clang-cl | head -n 1)")" >> $GITHUB_ENV
+
+      - name: Setup Xmake
+        uses: xmake-io/github-action-setup-xmake@v1
+        with:
+          xmake-version: "3.1.0"
+
+      - name: Configure Xmake
+        run: xmake f -m ${{ github.event.inputs.build_mode }} -a ${{ matrix.arch }} --toolchain=clang-cl --bin="${{ env.CLANG_BIN }}" --yes
+
+      - name: Build ChromeGreen
+        shell: bash
+        run: |
+          # Force-rebuild the standalone updater exe first so its after_build
+          # regenerates src/updater_res.rc (embeds the exe into version.dll as
+          # RCDATA 1001). Must precede the dll build on a clean checkout.
+          xmake build -r chrome_green_updater
+          xmake
+
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ env.ARTIFACT_NAME }}
+          path: build/${{ github.event.inputs.build_mode }}/version.dll
+
+  release:
+    needs: build
+    if: ${{ github.event.inputs.build_mode == 'release' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set version env
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          # SHORT_SHA must be captured from HEAD *before* the version.h commit
+          # below. The build job named its artifacts `version-<arch>-<SHORT_SHA>`
+          # using the trigger commit. If we recompute it after pushing a new
+          # commit, HEAD moves and the SHA no longer matches the artifact folders
+          # (caused the `cannot stat build_artifacts/version-x86-xxxx/version.dll`
+          # cp error). Compute here while HEAD == the trigger commit.
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          echo "SHORT_SHA=$SHORT_SHA" >> $GITHUB_ENV
+          if [[ "$VERSION" == *-* ]]; then
+            echo "IS_PRERELEASE=true" >> $GITHUB_ENV
+          else
+            echo "IS_PRERELEASE=false" >> $GITHUB_ENV
+          fi
+
+      - name: Apply version & push to main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          CORE="${VERSION%%-*}"
+          PRE="${VERSION#*-}"
+          if [ "$PRE" = "$VERSION" ]; then PRE_SUFFIX=""; else PRE_SUFFIX="-$PRE"; fi
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CORE"
+          sed -i 's/#define RELEASE_VER_MAIN .*/#define RELEASE_VER_MAIN '"$MAJOR"'/' src/version.h
+          sed -i 's/#define RELEASE_VER_SUB .*/#define RELEASE_VER_SUB '"$MINOR"'/' src/version.h
+          sed -i 's/#define RELEASE_VER_FIX .*/#define RELEASE_VER_FIX '"$PATCH"'/' src/version.h
+          sed -i 's|#define RELEASE_VER_PRE_SUFFIX .*|#define RELEASE_VER_PRE_SUFFIX "'"$PRE_SUFFIX"'"|' src/version.h
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/version.h
+          git commit -m "build(release): bump version to $VERSION" || echo "version.h already up to date"
+          git push origin HEAD:main
+
+      - name: Download Build Artifacts
+        uses: actions/download-artifact@v8
+        with:
+          path: build_artifacts
+
+      - name: Package All Artifacts
+        run: |
+          # Per-arch folders: x86/version.dll, x64/version.dll, arm64/version.dll.
+          mkdir -p artifacts/x86 artifacts/x64 artifacts/arm64
+          cp "build_artifacts/version-x86-${SHORT_SHA}/version.dll" artifacts/x86/version.dll
+          cp "build_artifacts/version-x64-${SHORT_SHA}/version.dll" artifacts/x64/version.dll
+          cp "build_artifacts/version-arm64-${SHORT_SHA}/version.dll" artifacts/arm64/version.dll
+          cd artifacts
+          7z a -tzip -mx=9 -mmt=on ../ChromeGreen_v${{ env.VERSION }}.zip x86 x64 arm64
+          cd .
+
+      - name: Attest Release Packages
+        # Build Provenance attestation is unavailable on user-owned *private*
+        # repos (GitHub hard limit). Auto-skip while private so the release job
+        # doesn't fail; once the repo is made public this step runs normally
+        # without any further change.
+        if: ${{ !github.event.repository.private }}
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: |
+            ChromeGreen_v${{ env.VERSION }}.zip
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2.5.0
+        with:
+          files: |
+            ChromeGreen_v${{ env.VERSION }}.zip
+          tag_name: ${{ env.VERSION }}
+          name: ${{ env.VERSION }}
+          prerelease: ${{ env.IS_PRERELEASE }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

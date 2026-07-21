@@ -1,0 +1,9 @@
+[submodule "mini_gzip"]
+	path = mini_gzip
+	url = https://github.com/libsgh/mini_gzip.git
+[submodule "detours"]
+	path = detours
+	url = https://github.com/microsoft/Detours.git
+[submodule "7zip"]
+	path = 7zip
+	url = https://github.com/ip7z/7zip.git

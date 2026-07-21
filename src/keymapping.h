@@ -1,0 +1,6 @@
+#ifndef CHROME_GREEN_SRC_KEYMAPPING_H_
+#define CHROME_GREEN_SRC_KEYMAPPING_H_
+
+void KeyMapping();
+
+#endif  // CHROME_GREEN_SRC_KEYMAPPING_H_

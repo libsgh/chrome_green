@@ -1,0 +1,6 @@
+#ifndef CHROME_GREEN_SRC_POLICIES_H_
+#define CHROME_GREEN_SRC_POLICIES_H_
+
+void IgnorePolicies();
+
+#endif  // CHROME_GREEN_SRC_POLICIES_H_

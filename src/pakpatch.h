@@ -1,0 +1,6 @@
+#ifndef CHROME_GREEN_SRC_PAKPATCH_H_
+#define CHROME_GREEN_SRC_PAKPATCH_H_
+
+void PakPatch();
+
+#endif  // CHROME_GREEN_SRC_PAKPATCH_H_

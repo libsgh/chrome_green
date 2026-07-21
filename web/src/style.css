@@ -1,0 +1,536 @@
+@import "tailwindcss";
+
+/* Custom variant for class-based dark mode */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  /* Colors: reference CSS variables for light/dark mode switching */
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+
+  /* Border radius */
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+}
+
+@layer base {
+  :root {
+    /* shadcn-vue neutral (light) */
+    --background: 0 0% 100%;
+    --foreground: 0 0% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 3.9%;
+    --primary: 0 0% 9%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 0 0% 96.1%;
+    --secondary-foreground: 0 0% 9%;
+    --muted: 0 0% 96.1%;
+    --muted-foreground: 0 0% 45.1%;
+    --accent: 0 0% 96.1%;
+    --accent-foreground: 0 0% 9%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 89.8%;
+    --input: 0 0% 89.8%;
+    --ring: 0 0% 3.9%;
+    --radius: 0.5rem;
+
+    --success: 142 72% 29%;
+    --warning: 38 92% 50%;
+    --info: 0 0% 45.1%;
+  }
+
+  .dark {
+    /* shadcn-vue neutral (dark) — 中性灰，不偏蓝 */
+    --background: 0 0% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 0 0% 6.5%;
+    --card-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 0 0% 9%;
+    --secondary: 0 0% 14.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 0 0% 14.9%;
+    --muted-foreground: 0 0% 63.9%;
+    --accent: 0 0% 14.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 14.9%;
+    --input: 0 0% 14.9%;
+    --ring: 0 0% 83.1%;
+
+    --success: 142 72% 39%;
+    --warning: 38 92% 50%;
+    --info: 0 0% 63.9%;
+  }
+
+  * {
+    border-color: hsl(var(--border));
+  }
+
+  body {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-family:
+      -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue",
+      Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+@layer components {
+/* Button base */
+  .btn {
+    @apply inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium
+           transition-colors focus-visible:outline-none focus-visible:ring-2
+           focus-visible:ring-ring focus-visible:ring-offset-2
+           disabled:pointer-events-none disabled:opacity-50
+           h-9 px-4 py-2 select-none cursor-pointer;
+  }
+
+  .btn-primary {
+    @apply bg-primary text-primary-foreground
+           hover:opacity-90 active:opacity-80;
+  }
+
+  .btn-secondary {
+    @apply bg-secondary text-secondary-foreground
+           hover:opacity-80 active:opacity-70;
+  }
+
+  .btn-outline {
+    @apply border border-border bg-transparent
+           hover:bg-accent text-foreground;
+  }
+
+  .btn-destructive {
+    @apply bg-destructive text-destructive-foreground
+           hover:opacity-90;
+  }
+
+/* Card */
+  .card {
+    @apply rounded-lg border border-border bg-card
+           text-card-foreground shadow-sm;
+  }
+
+  .card-header {
+    @apply flex flex-col space-y-1.5 p-6;
+  }
+
+  .card-title {
+    @apply text-lg font-semibold leading-none tracking-tight;
+  }
+
+  .card-description {
+    @apply text-sm text-muted-foreground mt-2;
+  }
+
+  .card-content {
+    @apply p-6 pt-0;
+  }
+
+  .card-footer {
+    @apply flex items-center p-6 pt-0;
+  }
+
+/* Input */
+  .input {
+    @apply flex h-9 w-full rounded-md border-2 border-input bg-transparent
+           px-3 py-1 text-sm transition-colors
+           placeholder:text-muted-foreground
+           shadow-none
+           focus-visible:outline-none focus-visible:border-primary
+           disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+/* Select */
+  .select {
+    @apply flex h-9 w-full rounded-md border-2 border-input
+           px-3 py-1 text-sm transition-colors
+           shadow-none
+           focus-visible:outline-none focus-visible:border-primary
+           disabled:cursor-not-allowed disabled:opacity-50
+           cursor-pointer appearance-none;
+    background-color: hsl(var(--card));
+    color: hsl(var(--foreground));
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23718096' d='M6 8.825a.5.5 0 0 1-.353-.146l-4-4a.5.5 0 0 1 .707-.707L6 7.618l3.647-3.646a.5.5 0 0 1 .707.707l-4 4A.5.5 0 0 1 6 8.825z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.75rem center;
+    padding-right: 2.25rem;
+  }
+
+  .select option {
+    background-color: hsl(var(--card));
+    color: hsl(var(--foreground));
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+  }
+
+  .select option:hover,
+  .select option:focus,
+  .select option:checked {
+    background-color: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
+  }
+
+  .dark .select {
+    background-color: hsl(var(--card));
+    color: hsl(var(--foreground));
+  }
+
+  .dark .select option {
+    background-color: hsl(var(--card));
+    color: hsl(var(--foreground));
+  }
+
+/* Radio */
+  input[type="radio"].radio {
+    @apply appearance-none w-4 h-4 rounded-full cursor-pointer shrink-0
+           transition-colors relative;
+    border: 1.5px solid hsl(var(--border));
+    background-color: hsl(var(--background));
+  }
+
+  input[type="radio"].radio:checked {
+    border-color: hsl(var(--primary));
+    background-color: hsl(var(--background));
+  }
+
+  input[type="radio"].radio::after {
+    content: "";
+    position: absolute;
+    inset: 3px;
+    border-radius: 50%;
+    background-color: hsl(var(--primary));
+    transform: scale(0);
+    transition: transform 0.15s ease;
+  }
+
+  input[type="radio"].radio:checked::after {
+    transform: scale(1);
+  }
+
+  input[type="radio"].radio:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px hsl(var(--background)), 0 0 0 4px hsl(var(--ring));
+  }
+
+/* Switch */
+  .switch-track {
+    @apply relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center
+           rounded-full border-2 border-transparent transition-colors
+           focus-visible:outline-none focus-visible:ring-2
+           focus-visible:ring-ring focus-visible:ring-offset-2
+           disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .switch-track.on {
+    @apply bg-primary;
+  }
+
+  .switch-track.off {
+    @apply bg-input;
+  }
+
+  .switch-thumb {
+    @apply pointer-events-none block h-4 w-4 rounded-full bg-primary-foreground shadow-lg
+           ring-0 transition-transform;
+  }
+
+  .switch-track.on .switch-thumb {
+    transform: translateX(0.875rem);
+  }
+
+  .switch-track.off .switch-thumb {
+    transform: translateX(0.125rem);
+  }
+
+/* Label / Description */
+  .label {
+    @apply text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70;
+  }
+
+  .description {
+    @apply text-sm text-muted-foreground;
+  }
+
+/* Badge base + variants */
+  .badge {
+    @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold
+           transition-colors focus:outline-none focus:ring-2 focus:ring-ring
+           focus:ring-offset-2;
+  }
+
+  .badge-success {
+    @apply bg-green-100 text-green-800;
+  }
+
+  .badge-warning {
+    @apply bg-yellow-100 text-yellow-800;
+  }
+
+  .badge-info {
+    @apply bg-muted text-muted-foreground;
+  }
+
+  .badge-error {
+    @apply bg-red-100 text-red-800;
+  }
+
+  .badge-neutral {
+    @apply bg-secondary text-secondary-foreground;
+  }
+
+  /* Dark mode badge overrides */
+  .dark .badge-success {
+    @apply bg-green-900/40 text-green-300;
+  }
+  .dark .badge-warning {
+    @apply bg-yellow-900/40 text-yellow-300;
+  }
+  .dark .badge-info {
+    @apply bg-secondary text-muted-foreground;
+  }
+  .dark .badge-error {
+    @apply bg-red-900/40 text-red-300;
+  }
+  .dark .badge-neutral {
+    @apply bg-secondary text-muted-foreground;
+  }
+
+/* Progress */
+  .progress-track {
+    @apply relative h-3 w-full overflow-hidden rounded-full bg-secondary;
+  }
+
+  .progress-fill {
+    @apply h-full transition-all duration-300 ease-in-out rounded-full;
+  }
+
+  .progress-fill.info {
+    @apply bg-primary;
+  }
+
+  .progress-fill.success {
+    @apply bg-green-500;
+  }
+
+  .progress-fill.warning {
+    @apply bg-yellow-500;
+  }
+
+/* Settings row */
+.setting-row {
+  @apply grid grid-cols-[1fr_auto] items-center gap-4 py-5;
+  border-bottom: 1px solid hsl(var(--border));
+}
+
+  .setting-row:last-child {
+    border-bottom: none;
+  }
+
+  .setting-label-group {
+    @apply space-y-0.5;
+  }
+
+  .setting-label {
+    @apply text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70;
+  }
+
+  .setting-desc {
+    @apply text-sm text-muted-foreground;
+  }
+
+/* Update/Error banner in dark mode */
+  .dark .update-banner {
+    @apply bg-secondary border-border text-foreground;
+  }
+  .dark .error-banner {
+    @apply bg-red-900/30 border-red-800 text-red-200;
+  }
+}
+
+/* Spinner animation for loading state */
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.animate-spin {
+  animation: spin 0.6s linear infinite;
+}
+
+/* Icon button */
+.icon-btn {
+  @apply inline-flex items-center justify-center w-8 h-8 rounded-md
+         text-muted-foreground hover:text-foreground
+         hover:bg-accent transition-colors cursor-pointer shrink-0;
+  background: transparent;
+  border: none;
+  padding: 0;
+}
+
+/* Navigation tabs */
+.nav-tab {
+  @apply flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium
+         text-muted-foreground hover:text-foreground hover:bg-accent transition-colors
+         cursor-pointer leading-none;
+  background: transparent;
+  border: none;
+}
+.nav-tab.active {
+  @apply text-foreground bg-accent;
+}
+.nav-tab .nav-label {
+  @apply leading-none;
+}
+
+/* Settings sub-tabs (horizontal tabs inside the Advanced tab) */
+.subtab {
+  @apply relative px-3 py-2.5 text-sm font-medium text-muted-foreground
+         hover:text-foreground transition-colors cursor-pointer whitespace-nowrap
+         rounded-none bg-transparent border-0 border-b-2 border-transparent;
+}
+.subtab:hover {
+  border-bottom-color: hsl(var(--border));
+}
+.subtab.active {
+  @apply text-foreground;
+  border-bottom-color: hsl(var(--primary));
+}
+
+.tab-icon {
+  @apply flex items-center justify-center w-5 h-5 shrink-0;
+}
+
+/* Dropdown menu */
+.dropdown-menu {
+  @apply absolute z-30 min-w-[140px] rounded-md border border-border
+         bg-card shadow-lg py-1 overflow-hidden;
+}
+
+.dropdown-item {
+  @apply w-full text-left px-3 py-1.5 text-xs text-foreground
+         hover:bg-accent transition-colors cursor-pointer
+         flex items-center justify-between gap-3;
+  background: transparent;
+  border: none;
+}
+
+.dropdown-item .check-icon {
+  flex-shrink: 0;
+  width: 1em;
+  height: 1em;
+}
+
+.dropdown-item.active {
+  @apply bg-primary/10 text-primary font-medium;
+}
+
+/* Tools cards */
+.tools-grid {
+  @apply grid grid-cols-1 sm:grid-cols-2 gap-4;
+}
+
+.tool-card {
+  @apply flex flex-col justify-between gap-4 rounded-lg border border-border bg-card p-4
+         transition-all duration-200 hover:shadow-md hover:-translate-y-0.5;
+}
+
+.tool-card-main {
+  @apply flex items-start gap-3;
+}
+
+.tool-icon-box {
+  @apply flex h-11 w-11 shrink-0 items-center justify-center rounded-lg
+         bg-primary/10 text-primary;
+}
+
+.tool-card-text {
+  @apply flex flex-col gap-1 min-w-0;
+}
+
+.tool-card-title {
+  @apply text-sm font-semibold text-foreground leading-tight;
+}
+
+.tool-card-desc {
+  @apply text-xs text-muted-foreground leading-relaxed line-clamp-2;
+}
+
+.tool-card-action {
+  @apply flex items-center justify-end gap-2 flex-wrap;
+}
+
+/* Toast notification (save feedback) */
+.toast {
+  position: fixed;
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: hsl(var(--primary-foreground));
+  background: hsl(var(--primary));
+  box-shadow: 0 8px 24px hsl(0 0% 0% / 0.22);
+  pointer-events: none;
+}
+.toast-error {
+  background: hsl(var(--destructive));
+  color: hsl(var(--destructive-foreground));
+}
+.toast-fade-enter-active,
+.toast-fade-leave-active {
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+.toast-fade-enter-from,
+.toast-fade-leave-to {
+  opacity: 0;
+  transform: translateX(-50%) translateY(10px);
+}
+
+/* Other tab */
+.restart-chip {
+  @apply inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium;
+  @apply bg-yellow-100 text-yellow-800;
+  white-space: nowrap;
+  flex: none;
+}
+.dark .restart-chip {
+  @apply bg-yellow-900/40 text-yellow-300;
+}
+.keymap-toggle {
+  @apply flex w-full items-center gap-2 rounded-md border border-border
+         bg-[hsl(var(--secondary))] px-3 py-2 text-sm text-[hsl(var(--foreground))];
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+.keymap-toggle:hover {
+  border-color: hsl(var(--primary));
+}

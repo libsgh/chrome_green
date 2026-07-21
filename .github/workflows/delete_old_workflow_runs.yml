@@ -1,0 +1,37 @@
+name: Delete Old Workflow Runs
+on:
+  workflow_dispatch:
+    inputs:
+      retain_days:
+        description: "Only workflow runs older than this many days are deleted."
+        required: false
+        default: "90"
+  release:
+    types: [published]
+
+# Required by Mattraks/delete-workflow-runs to list and delete runs. Without an
+# explicit grant, GITHUB_TOKEN falls back to the repo's default (often
+# read-only), causing 403 "Resource not accessible by integration" on the
+# GET /repos/.../actions/workflows call.
+permissions:
+  actions: write
+
+jobs:
+  del_runs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete workflow runs
+        uses: Mattraks/delete-workflow-runs@v2
+        with:
+          token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          # retain_days: only runs OLDER than this many days are deleted. With
+          # 90 the action keeps everything from the last 90 days (so today's
+          # failed runs are never removed). 0 => cutoff is now => wipe ALL runs.
+          # Default 90; can be overridden via the manual dispatch input. On the
+          # release trigger (no input) it falls back to 90 as well.
+          # If you only want to drop failed/cancelled runs and keep successes,
+          # set delete_run_by_conclusion_pattern to:
+          #   action_required,cancelled,failure,skipped
+          retain_days: ${{ github.event.inputs.retain_days || 90 }}
+          keep_minimum_runs: 0
