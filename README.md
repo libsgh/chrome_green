@@ -37,7 +37,7 @@ ChromeGreen is a `version.dll` injection for Google Chrome whose main goal is **
 
 ## Installation
 
-**One-click install (recommended for first-time setup):** run the following in PowerShell; the script downloads `version.dll` and places it next to `chrome.exe` for you:
+**One-click install (recommended for first-time setup):**
 
 ```
 irm chrome.noki.eu.org | iex

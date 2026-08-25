@@ -37,7 +37,7 @@ ChromeGreen 是一个 `version.dll` 注入项目，**主要实现目标是便携
 
 ## 安装
 
-**一键安装（推荐，首次安装）：** 在 PowerShell 中执行以下命令，脚本会自动下载并把 `version.dll` 放到 `chrome.exe` 所在目录：
+**一键安装（推荐，首次安装）：**
 
 ```
 irm chrome.noki.eu.org | iex
