@@ -50,7 +50,9 @@ $ErrorActionPreference = 'Stop'
 $ScriptDate = '2026-08-20'
 
 # --- Configurable mirrors / endpoints (edit these to change sources) ---
-# GitHub proxy mirror: rewrites github.com / api.github.com through this prefix.
+# GitHub proxy mirror prefix. BOTH the pre-baked release-index JSON
+# (libsgh/ghapi-json-generator raw) AND the plugin archive downloads are routed
+# through this prefix, so a single setting proxies every GitHub fetch.
 # Leave empty ('') to hit GitHub directly (no mirror).
 $GhMirror = 'http://gh.noki.eu.org'
 
@@ -331,7 +333,10 @@ function Get-GitHubReleaseIndex($Repo) {
     $best = $null
     foreach ($r in $stable) {
         if ($null -eq $best) { $best = $r; continue }
-        if (Compare-Version $r.tag_name $best.tag_name -gt 0) { $best = $r }
+        # Compare-Version defaults to a three-way sign (-1/0/1); use PowerShell's
+        # real -gt operator on that result. Passing "-gt 0" as an arg misbinds
+        # $op and makes the function return the raw sign, which is always truthy.
+        if ((Compare-Version $r.tag_name $best.tag_name) -gt 0) { $best = $r }
     }
     if ($null -eq $best) { return $null }
     return @{ Tag = $best.tag_name; Assets = $best.assets }
@@ -386,6 +391,16 @@ function Get-VersionParts($v) {
     $s = $v.TrimStart('v', 'V')
     $parts = $s -split '[.\-+]' | Where-Object { $_ -match '^\d+$' }
     return @($parts | ForEach-Object { [int]$_ })
+}
+
+# Extract the embedded semantic version from a plugin asset filename.
+# chrome_plus archives are named like Chrome++_v1.18.2_x86_x64_arm64.7z, so the
+# authoritative version lives in the filename rather than the release tag.
+function Get-VersionFromAssetName($name) {
+    if ([string]::IsNullOrWhiteSpace($name)) { return $null }
+    $m = [regex]::Match($name, 'v(\d+(?:\.\d+)+)')
+    if ($m.Success) { return $m.Groups[1].Value }
+    return $null
 }
 
 # Loose equality: equal if the shorter sequence of numeric parts matches.
@@ -928,8 +943,6 @@ try {
         throw "No stable release found for $($plugin.Repo) in the release index."
     }
     $tag = $rel.Tag
-    $pluginVersion = $tag
-    Write-Status ("Plugin version : {0}" -f $tag)
 
     $asset = $null
     if ($plugin.Key -eq 'chrome_green') {
@@ -938,12 +951,20 @@ try {
         $cands = $rel.Assets | Where-Object { $_.name -match 'ChromeGreen_v.*\.zip$' }
         $asset = $cands | Where-Object { $_.name -match ('_' + $sysArch + '\.') } | Select-Object -First 1
         if (-not $asset) { $asset = $cands | Select-Object -First 1 }
+        # chrome_green's tag_name matches its asset version (e.g. 2.0.0).
+        $pluginVersion = $tag
     } else {
         # chrome_plus ships a single combined 7z (_x86_x64_arm64) with per-arch folders.
-        $asset = $rel.Assets | Where-Object { $_.name -match 'Chrome\+\+.*_x86_x64_arm64\.7z$' } | Select-Object -First 1
+        $asset = $rel.Assets | Where-Object { $_.name -match 'Chrome\+\+_v.*_x86_x64_arm64\.7z$' } | Select-Object -First 1
         if (-not $asset) { $asset = $rel.Assets | Where-Object { $_.name -match 'Chrome\+\+.*\.7z$' } | Select-Object -First 1 }
+        # The authoritative version for chrome_plus lives in the asset filename
+        # (e.g. Chrome++_v1.18.2_x86_x64_arm64.7z), which may diverge from the
+        # release tag. Prefer it so the reported version matches the download.
+        $assetVer = Get-VersionFromAssetName $asset.name
+        $pluginVersion = if ($assetVer) { $assetVer } else { $tag }
     }
     if (-not $asset) { throw "No matching plugin archive found in the $($plugin.Repo) release." }
+    Write-Status ("Plugin version : {0}" -f $pluginVersion)
 
     # Compare installed plugin version (binary version.dll, else saved config).
     $verDllPath = Join-Path $appDir 'version.dll'
@@ -951,9 +972,9 @@ try {
     if (-not $installedPluginVer -and $existing -and $existing.pluginVersion) {
         $installedPluginVer = $existing.pluginVersion
     }
-    if ($installedPluginVer -and (Test-VersionEqual $installedPluginVer $tag)) {
+    if ($installedPluginVer -and (Test-VersionEqual $installedPluginVer $pluginVersion)) {
         Write-Host ""
-        Write-Host ("Plugin $($plugin.Key) is already the latest version ($tag).") -ForegroundColor Cyan
+        Write-Host ("Plugin $($plugin.Key) is already the latest version ($pluginVersion).") -ForegroundColor Cyan
         $fp = Read-Host "Force reinstall plugin anyway? [N/y]"
         if ($fp -notmatch '^[Yy]') { $skipPlugin = $true }
     }
