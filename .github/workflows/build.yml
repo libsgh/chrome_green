@@ -203,3 +203,14 @@ jobs:
           prerelease: ${{ env.IS_PRERELEASE }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  trigger-another-repo:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger version ${{ github.event.inputs.version }} downstream build
+        run: |
+          curl -X POST \
+            -H "Authorization: token ${{ secrets.REPO_ACCESS_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            https://api.github.com/repos/libsgh/ghapi-json-generator/dispatches \
+            -d '{"event_type": "build_downstream"}'
