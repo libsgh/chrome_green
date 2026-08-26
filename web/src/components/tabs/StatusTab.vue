@@ -80,7 +80,10 @@
           <button
             class="btn inline-flex items-center gap-1.5 border border-border text-foreground hover:bg-accent"
             @click="checkAllUpdates"
-            :disabled="isAutoChecking || selfChecking">
+            :disabled="isAutoChecking || selfChecking || updateInProgress"
+            :title="
+              updateInProgress ? t('check_disabled_downloading') : undefined
+            ">
             <span
               v-if="isAutoChecking || selfChecking"
               class="inline-block w-3.5 h-3.5 border-2 border-foreground/30 border-t-foreground rounded-full animate-spin align-middle -mt-px"></span>
@@ -292,6 +295,13 @@ const selfUpdateBtnText = computed(() => {
 const selfUpdateDisabled = computed(() => {
   return selfDownloading.value && !status.self_update_ready;
 });
+
+// While a download (or the post-download extraction) is running, a new check
+// would clobber the live state — the check button stays disabled until the
+// user cancels or the download finishes.
+const updateInProgress = computed(
+  () => status.state === "downloading" || status.state === "applying",
+);
 
 async function onSelfUpdateClick() {
   if (status.self_update_ready) {

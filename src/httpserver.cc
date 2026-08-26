@@ -641,6 +641,23 @@ std::string HandleRequest(const HttpRequest& req) {
       g_update_state.error_message.clear();
     }
     SaveUpdateState();
+
+    // Also clear the update working folders (updates/ + update_temp/) so a
+    // reset after a failed/interrupted download removes the broken partial
+    // installer. The download runs on a thread INSIDE this chrome.exe
+    // process and holds the output file open with an exclusive handle —
+    // that is why manual deletion in Explorer fails with "file is open in
+    // Chrome". Cancel first (CancelForReset also suppresses the download
+    // thread's exit-path state transition so it doesn't overwrite the kIdle
+    // set above), wait for the thread to close its file handle (at worst
+    // when the blocked WinHTTP read times out), then delete the folders.
+    // The wait can take up to ~a minute, so run it in the background — the
+    // state is already reset, the folder deletion is just cleanup.
+    Downloader::Instance().CancelForReset();
+    std::thread([]() {
+      Downloader::Instance().Wait();
+      CleanUpdateWorkDirs();
+    }).detach();
     return BuildResponse(200, "application/json", "{\"ok\":true}");
   }
 

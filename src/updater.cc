@@ -9,6 +9,7 @@
 #include <cstdio>
 #include <fstream>
 #include <thread>
+#include <vector>
 
 #include "config.h"
 #include "diaglog.h"
@@ -524,6 +525,94 @@ bool HasLocalPackage() {
   return !FindLocalPackage().empty();
 }
 
+void CleanUpdateWorkDirs() {
+  // A new download may have been started between the reset and now (e.g. the
+  // user immediately re-checked with auto-download enabled). Never touch the
+  // working folders while a download is writing into them.
+  if (Downloader::Instance().IsDownloading()) {
+    AddDebugLog("CleanUpdateWorkDirs: a download is in progress, skipping");
+    return;
+  }
+
+  std::wstring dll_dir = GetSelfDllDir();
+
+  // update_temp/ is pure extraction scratch — always wipe it.
+  std::wstring temp_dir = dll_dir + L"\\update_temp";
+  if (PathFileExistsW(temp_dir.c_str())) {
+    RemoveDirectoryRecursive(temp_dir);
+    RemoveDirectoryW(temp_dir.c_str());
+  }
+
+  std::wstring updates_dir = dll_dir + L"\\updates";
+  if (!PathFileExistsW(updates_dir.c_str())) return;
+
+  // Preserve the self_update staging dir when a self-update is downloaded
+  // and waiting to be applied on restart — wiping it would break the
+  // pending version.dll swap.
+  bool keep_self_update = false;
+  {
+    auto st = GetUpdateStateSnapshot();
+    keep_self_update = st.self_update_ready;
+  }
+
+  WIN32_FIND_DATAW fd;
+  HANDLE hFind = FindFirstFileW((updates_dir + L"\\*").c_str(), &fd);
+  if (hFind == INVALID_HANDLE_VALUE) return;
+
+  std::vector<std::wstring> locked;
+  do {
+    std::wstring name = fd.cFileName;
+    if (name == L"." || name == L"..") continue;
+    if (keep_self_update && (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) &&
+        _wcsicmp(name.c_str(), L"self_update") == 0) {
+      continue;
+    }
+    std::wstring path = updates_dir + L"\\" + name;
+    if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+      RemoveDirectoryRecursive(path);
+      if (PathFileExistsW(path.c_str())) locked.push_back(path);
+    } else if (!DeleteFileW(path.c_str())) {
+      locked.push_back(path);
+    }
+  } while (FindNextFileW(hFind, &fd));
+  FindClose(hFind);
+
+  // Locked leftovers: retry for a few seconds (handles are often released a
+  // moment later by the dying download thread or antivirus), then rename to
+  // .old — NTFS allows renaming an open file on the same volume. Startup
+  // cleanup deletes the .old files on the next launch.
+  for (const auto& path : locked) {
+    bool gone = false;
+    for (int i = 0; i < 10 && !gone; i++) {
+      Sleep(500);
+      if (!PathFileExistsW(path.c_str())) break;
+      if (DeleteFileW(path.c_str()) || RemoveDirectoryW(path.c_str())) {
+        gone = !PathFileExistsW(path.c_str());
+      }
+    }
+    if (!gone && PathFileExistsW(path.c_str())) {
+      DWORD attr = GetFileAttributesW(path.c_str());
+      if (attr != INVALID_FILE_ATTRIBUTES &&
+          !(attr & FILE_ATTRIBUTE_DIRECTORY)) {
+        std::wstring old_path = path + L".old";
+        DeleteFileW(old_path.c_str());  // remove any previous .old first
+        if (MoveFileW(path.c_str(), old_path.c_str())) {
+          AddDebugLog("CleanUpdateWorkDirs: renamed locked file to .old: " +
+                      WstrToUtf8(path));
+        } else {
+          AddDebugLog("CleanUpdateWorkDirs: cannot delete or rename: " +
+                      WstrToUtf8(path) + " (error=" +
+                      std::to_string(GetLastError()) + ")");
+        }
+      }
+    }
+  }
+
+  // Remove the now-empty updates/ folder itself (no-op if anything is left).
+  RemoveDirectoryW(updates_dir.c_str());
+  AddDebugLog("CleanUpdateWorkDirs: update working folders cleaned");
+}
+
 void TriggerUpdateCheck() {
   if (check_in_progress_.load()) return;
 
@@ -536,6 +625,16 @@ void TriggerUpdateCheck() {
 
 void TriggerDownload() {
   auto state = GetUpdateStateSnapshot();
+
+  // A download thread is already running (e.g. a just-cancelled one still
+  // winding down after a network failure, or one blocked in a WinHTTP read
+  // until its timeout). Downloader::Start would silently refuse it AFTER
+  // TriggerDownload flipped the state to kDownloading below — leaving a
+  // progress bar with no download behind. Bail out early instead.
+  if (Downloader::Instance().IsDownloading()) {
+    AddDebugLog("TriggerDownload: a download is already in progress, ignoring");
+    return;
+  }
 
   // Offline install: check for a local .7z package in the updates folder.
   // If found, skip the entire download flow and use the local file directly.
@@ -783,6 +882,41 @@ void InitUpdater() {
   if (!chrome_ver.empty()) {
     std::lock_guard<std::mutex> lock(g_update_mutex);
     g_update_state.current_version = chrome_ver;
+  }
+
+  // Recover from states that cannot survive a restart: the threads driving
+  // "checking"/"downloading"/"applying" died with the previous process, so a
+  // persisted state like that leaves the config page showing a frozen
+  // progress bar forever with no way out. Fall back to "available" when the
+  // interrupted update is still newer than the installed version, else idle.
+  {
+    const char* stale = nullptr;
+    {
+      std::lock_guard<std::mutex> lock(g_update_mutex);
+      if (g_update_state.state == UpdateState::kChecking) stale = "checking";
+      else if (g_update_state.state == UpdateState::kDownloading) stale = "downloading";
+      else if (g_update_state.state == UpdateState::kApplying) stale = "applying";
+      if (stale) {
+        if (!g_update_state.latest_version.empty() &&
+            g_update_state.latest_version != g_update_state.current_version) {
+          g_update_state.state = UpdateState::kAvailable;
+        } else {
+          g_update_state.state = UpdateState::kIdle;
+        }
+        g_update_state.download_progress = 0;
+        g_update_state.downloaded_bytes = 0;
+        g_update_state.download_speed = 0;
+        g_update_state.download_eta = 0;
+        g_update_state.download_path.clear();
+        g_update_state.error_message.clear();
+      }
+    }
+    if (stale) {
+      AddDebugLog(std::string("InitUpdater: stale '") + stale +
+                  "' state at startup (its thread died with the previous "
+                  "process), resetting");
+      SaveUpdateState();
+    }
   }
 
   // EARLY diagnostic (ring buffer only): snapshot state so we can see what

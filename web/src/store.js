@@ -106,6 +106,20 @@ const selfDownloading = computed(() => status.self_downloading === true);
 // Whether at least one explicit update check (Chrome or ChromeGreen) has run
 // since the page opened. Until then the status badge reads "未检查" (Not checked).
 const hasChecked = ref(false);
+// hasChecked is page-local, but the backend remembers whether a check ever ran
+// (last_check_time in the persisted state file) and whether an update cycle is
+// active right now. Without this sync, refreshing the page mid-download showed
+// "未检查" in the status badge while the SSE-driven progress bar kept animating,
+// and the new-version banner (gated on hasChecked) disappeared.
+function syncHasChecked(d) {
+  if (
+    !hasChecked.value &&
+    d &&
+    (d.state !== "idle" || (d.last_check_time || 0) > 0)
+  ) {
+    hasChecked.value = true;
+  }
+}
 const themeMode = ref(localStorage.getItem("chrome_green_theme") || "auto");
 const langMode = ref(localStorage.getItem("chrome_green_lang") || "auto");
 const logs = ref([]);
@@ -201,7 +215,9 @@ function startStatusStream() {
   statusSource = new EventSource("/api/stream");
   statusSource.onmessage = (e) => {
     try {
-      Object.assign(status, JSON.parse(e.data));
+      const d = JSON.parse(e.data);
+      Object.assign(status, d);
+      syncHasChecked(d);
       retryCount = 0;
     } catch (_) {}
   };
@@ -405,6 +421,7 @@ async function refreshStatus() {
   try {
     const d = await safeFetch(() => api.getStatus());
     Object.assign(status, d);
+    syncHasChecked(d);
     retryCount = 0;
   } catch (e) {
     retryCount++;
@@ -543,6 +560,12 @@ async function checkSelfUpdate() {
 // self-update check together. They are independent; a failure or a slower check
 // on one side does not block the other.
 function checkAllUpdates() {
+  // A running download/extraction owns the update state — a check now would
+  // clobber it. The user must cancel first (the check button is disabled too).
+  if (status.state === "downloading" || status.state === "applying") {
+    showToast(t("check_disabled_downloading"), "error");
+    return;
+  }
   checkUpdate();
   checkSelfUpdate();
 }
@@ -603,6 +626,7 @@ function waitForState(predicate, timeout) {
       try {
         const data = await api.getStatus();
         Object.assign(status, data);
+        syncHasChecked(data);
         if (predicate(data.state)) resolve();
         else setTimeout(check, 500);
       } catch (e) {

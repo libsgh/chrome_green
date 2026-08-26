@@ -23,6 +23,15 @@ void TriggerDownload();
 // Returns true if a local package is available for offline install.
 bool HasLocalPackage();
 
+// Delete the update working folders (updates/ and update_temp/), including
+// partial installers left behind by an interrupted/failed download. Files
+// still held open (a just-cancelled download thread inside this process, the
+// running GUI updater exe, antivirus) are retried briefly and, if still
+// locked, renamed to ".old" so NTFS lets them go — startup cleanup removes
+// the leftovers on the next launch. The self_update/ staging dir is preserved
+// while a self-update is downloaded and waiting to be applied on restart.
+void CleanUpdateWorkDirs();
+
 // Check if a pending update should be applied on this launch.
 // If state is Ready, extracts the 7z and replaces Chrome files.
 // Returns true if an update was applied (Chrome should restart).

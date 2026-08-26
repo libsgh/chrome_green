@@ -24,6 +24,8 @@ const translations = {
     },
     check_update: "Check for Updates",
     checking_btn: "Checking...",
+    check_disabled_downloading:
+      "Download in progress — cancel it before re-checking",
     download_update: "Download Update",
     offline_install: "Install from Local",
     local_package_found: "Local Update Package Found",
@@ -265,6 +267,7 @@ const translations = {
     },
     check_update: "检查更新",
     checking_btn: "检查中...",
+    check_disabled_downloading: "下载进行中，如需重新检查请先取消下载",
     download_update: "下载更新",
     offline_install: "离线安装",
     local_package_found: "发现本地安装包",
