@@ -1,5 +1,6 @@
 # ChromeGreen
 
+[![Build and Publish](https://github.com/libsgh/chrome_green/actions/workflows/build.yml/badge.svg)](https://github.com/libsgh/chrome_green/actions/workflows/build.yml)
 [![License](https://img.shields.io/github/license/libsgh/chrome_green)](LICENSE)
 [![Latest Release](https://img.shields.io/github/v/release/libsgh/chrome_green?logo=github)](https://github.com/libsgh/chrome_green/releases)
 [![Downloads](https://img.shields.io/github/downloads/libsgh/chrome_green/total?logo=github)](https://github.com/libsgh/chrome_green/releases)
@@ -8,11 +9,11 @@
 
 English | [简体中文](README.zh-CN.md)
 
-ChromeGreen is a `version.dll` injection for Google Chrome whose main goal is **portability (绿化) and in-place online updates**. It turns Chrome into a self-contained, carry-anywhere app, keeps that portable install current with a **built-in online updater**, and lets you tweak every setting from a **built-in config page** — no file editing required.
+ChromeGreen is a `version.dll` injection for Google Chrome whose main goal is **portability and in-place online updates**. It turns Chrome into a self-contained, carry-anywhere app, keeps that portable install current with a **built-in online updater**, and lets you tweak every setting from a **built-in config page** — no file editing required.
 
 ## Core Features
 
-- **Portable by design (绿化).** Redirects user data, cache, and machine-specific identifiers (computer name, volume serial, DPAPI encryption) so Chrome runs from any folder or USB drive — no installation, no registry binding.
+- **Portable by design.** Redirects user data, cache, and machine-specific identifiers (computer name, volume serial, DPAPI encryption) so Chrome runs from any folder or USB drive — no installation, no registry binding.
 - **Online update for portable Chrome.** A built-in updater downloads and replaces the portable Chrome build in place; your `Data` and `Cache` are preserved, so updating never wipes your profile.
 - **In-page configuration.** The injected DLL serves a built-in config page where you can change the update channel, proxy, data/cache paths, hotkeys, and more — no need to hand-edit config files.
 - Configure a boss key to hide and restore Chrome windows, muting and unmuting audio at the same time.

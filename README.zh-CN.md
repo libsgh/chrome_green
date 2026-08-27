@@ -1,5 +1,6 @@
 # ChromeGreen
 
+[![Build and Publish](https://github.com/libsgh/chrome_green/actions/workflows/build.yml/badge.svg)](https://github.com/libsgh/chrome_green/actions/workflows/build.yml)
 [![License](https://img.shields.io/github/license/libsgh/chrome_green)](LICENSE)
 [![Latest Release](https://img.shields.io/github/v/release/libsgh/chrome_green?logo=github)](https://github.com/libsgh/chrome_green/releases)
 [![Downloads](https://img.shields.io/github/downloads/libsgh/chrome_green/total?logo=github)](https://github.com/libsgh/chrome_green/releases)
@@ -8,11 +9,11 @@
 
 简体中文 | [English](README.md)
 
-ChromeGreen 是一个 `version.dll` 注入项目，**主要实现目标是便携化（绿化）及在线更新**。它让你把 Chrome 变成自包含、可随身携带的应用，并通过**内置的在线更新**保持便携版常新，还能在**内置配置页面**上直接修改所有设置——无需手动编辑文件。
+ChromeGreen 是一个 `version.dll` 注入项目，**主要实现目标是便携化及在线更新**。它让你把 Chrome 变成自包含、可随身携带的应用，并通过**内置的在线更新**保持便携版常新，还能在**内置配置页面**上直接修改所有设置——无需手动编辑文件。
 
 ## 核心功能
 
-- **便携（绿化）。** 重定向用户数据、缓存以及机器标识（计算机名、卷序列号、DPAPI 加密），让 Chrome 可以从任意目录或 U 盘运行——无需安装、不绑定注册表。
+- **便携。** 重定向用户数据、缓存以及机器标识（计算机名、卷序列号、DPAPI 加密），让 Chrome 可以从任意目录或 U 盘运行——无需安装、不绑定注册表。
 - **便携 Chrome 的在线更新。** 内置更新器可就地下载并替换便携版 Chrome，且保留你的 `Data` 与 `Cache`，更新永远不会清空你的个人配置。
 - **页面内配置。** 注入的 DLL 自带一个配置页面，你可以在上面直接修改更新通道、代理、数据/缓存路径、快捷键等，**无需手改配置文件**。
 - **配置老板键**。以隐藏和恢复 Chrome 窗口，并随之静音与恢复静音。
