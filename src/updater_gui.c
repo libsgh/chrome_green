@@ -77,7 +77,7 @@ typedef struct {
   COLORREF muted;     // percentage / close glyph (--muted-foreground)
   COLORREF status;    // current-step text (--foreground, slightly softened)
   COLORREF track;     // progress track
-  COLORREF fill;      // progress fill (Chrome Green brand)
+  COLORREF fill;      // progress fill (neutral --primary, matches config page)
 } Palette;
 static Palette g_pal;
 static int g_dark = 0; // 0 = light, 1 = dark
@@ -85,21 +85,21 @@ static int g_dark = 0; // 0 = light, 1 = dark
 static void set_palette(int dark) {
   g_dark = dark;
   if (dark) {
-    g_pal.bg      = RGB(9, 14, 26);     // --background  222 47% 7%
-    g_pal.border  = RGB(34, 47, 68);    // --border      217 33% 20%
-    g_pal.title   = RGB(248, 250, 252); // --foreground  210 40% 98%
-    g_pal.muted   = RGB(148, 163, 184); // --muted-fg    215 20% 65%
-    g_pal.status  = RGB(226, 232, 240);
-    g_pal.track   = RGB(34, 47, 68);
-    g_pal.fill    = RGB(59, 130, 246); // --primary (217 91% 60% = blue-500), matches config page
+    g_pal.bg      = RGB(10, 10, 10);     // --background  0 0% 3.9%  (neutral near-black)
+    g_pal.border  = RGB(38, 38, 38);     // --border      0 0% 14.9%
+    g_pal.title   = RGB(250, 250, 250);  // --foreground  0 0% 98%
+    g_pal.muted   = RGB(163, 163, 163);  // --muted-fg    0 0% 63.9%
+    g_pal.status  = RGB(228, 228, 228);  // --foreground, softened (~0 0% 89%)
+    g_pal.track   = RGB(38, 38, 38);     // --secondary   0 0% 14.9%
+    g_pal.fill    = RGB(250, 250, 250);  // --primary     0 0% 98% (neutral, matches config page)
   } else {
-    g_pal.bg      = RGB(255, 255, 255); // --background  0 0% 100%
-    g_pal.border  = RGB(225, 231, 239); // --border      214 32% 91%
-    g_pal.title   = RGB(15, 23, 41);    // --foreground  222 47% 11%
-    g_pal.muted   = RGB(101, 117, 139); // --muted-fg    215 16% 47%
-    g_pal.status  = RGB(30, 41, 59);
-    g_pal.track   = RGB(226, 232, 240); // slate-200
-    g_pal.fill    = RGB(59, 130, 246);  // --primary (217 91% 60% = blue-500), matches config page
+    g_pal.bg      = RGB(255, 255, 255);  // --background  0 0% 100%
+    g_pal.border  = RGB(229, 229, 229);  // --border      0 0% 89.8%
+    g_pal.title   = RGB(10, 10, 10);     // --foreground  0 0% 3.9%
+    g_pal.muted   = RGB(115, 115, 115);  // --muted-fg    0 0% 45.1%
+    g_pal.status  = RGB(64, 64, 64);     // --foreground, softened (~0 0% 25%)
+    g_pal.track   = RGB(245, 245, 245);  // --secondary   0 0% 96.1%
+    g_pal.fill    = RGB(23, 23, 23);     // --primary     0 0% 9% (neutral, matches config page)
   }
 }
 
