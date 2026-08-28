@@ -39,6 +39,12 @@ class Config {
   // Debug-log gate: when false, AddDebugLog() in update.cc is a no-op and the
   // config page hides the Logs tab. Defaults to false (off).
   bool IsDebugLog() const { return debug_log_; }
+  // When true, ChromeGreen injects --test-type to suppress the
+  // "unsupported command-line flag" infobar (e.g. from --host-resolver-rules).
+  // Defaults to false (off).
+  bool IsSuppressCmdlineWarning() const {
+    return suppress_cmdline_warning_;
+  }
   const std::string& GetTheme() const { return theme_; }
   const std::string& GetLanguage() const { return language_; }
   bool IsWin32K() const { return win32k_; }
@@ -68,6 +74,22 @@ class Config {
   // keymapping
   using KeyMappingPair = std::pair<std::wstring, std::wstring>;
   const auto& GetKeyMappings() const { return key_mappings_; }
+
+  // resolver_rules (域名映射 / Chromium --host-resolver-rules)
+  bool IsResolverEnabled() const { return resolver_enabled_; }
+  int GetResolverRefreshInterval() const { return resolver_refresh_interval_; }
+  int GetResolverMaxTotal() const { return resolver_max_total_; }
+  struct ResolverSubscription {
+    std::wstring name;
+    std::wstring url;
+    bool enabled = false;
+    long long last_refresh = 0;  // unix time, 0 = never
+    int rule_count = 0;
+    std::wstring cache;  // cache file base name (e.g. sub_1)
+  };
+  const std::vector<ResolverSubscription>& GetResolverSubscriptions() const {
+    return resolver_subs_;
+  }
 
   // update
   UpdateChannel GetUpdateChannel() const { return update_channel_; }
@@ -124,6 +146,7 @@ class Config {
   std::vector<std::wstring> url_group_;
   bool show_password_ = false;
   bool debug_log_ = false;
+  bool suppress_cmdline_warning_ = false;
   std::string theme_;
   std::string language_;
   bool win32k_;
@@ -146,6 +169,12 @@ class Config {
 
   // keymapping
   std::vector<KeyMappingPair> key_mappings_;
+
+  // resolver_rules (域名映射)
+  bool resolver_enabled_ = false;
+  int resolver_refresh_interval_ = 0;  // 0 = manual
+  int resolver_max_total_ = 800;
+  std::vector<ResolverSubscription> resolver_subs_;
 
   // update
   UpdateChannel update_channel_ = UpdateChannel::kStable;

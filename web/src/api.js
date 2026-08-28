@@ -134,4 +134,63 @@ export const api = {
   stopCapture() {
     return request('/api/capture/stop', { method: 'POST' })
   },
+
+  // Domain Mapping (域名映射): get config + subscriptions + effective rules.
+  getResolver() {
+    return request('/api/resolver')
+  },
+
+  // Set global resolver config (enabled / refresh_interval / max_total).
+  updateResolverConfig(cfg) {
+    return request('/api/resolver/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(cfg),
+    })
+  },
+
+  // Add a subscription (name + url).
+  addSubscription(payload) {
+    return request('/api/resolver/add', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+  },
+
+  // Remove a subscription by index.
+  removeSubscription(payload) {
+    return request('/api/resolver/remove', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+  },
+
+  // Enable/disable a subscription by index.
+  setSubscriptionEnabled(payload) {
+    return request('/api/resolver/enable', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+  },
+
+  // Refresh a subscription (index>=0) or all enabled subscriptions (index=-1).
+  refreshSubscription(payload) {
+    return request('/api/resolver/refresh', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+  },
+
+  // Export the effective rules as a hosts-format file.
+  exportResolverRules() {
+    return request('/api/resolver/export', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    })
+  },
 }

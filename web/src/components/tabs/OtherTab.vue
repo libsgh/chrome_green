@@ -280,6 +280,19 @@
               <span class="switch-thumb"></span>
             </div>
           </div>
+          <div class="setting-row">
+            <div class="setting-label-group">
+              <label class="setting-label">{{ t("suppress_cmdline_warning") }}</label>
+              <p class="setting-desc">{{ t("suppress_cmdline_warning_desc") }}</p>
+            </div>
+            <div
+              :class="['switch-track', settings.suppress_cmdline_warning ? 'on' : 'off']"
+              @click="toggle('suppress_cmdline_warning')"
+              role="switch"
+              :aria-checked="settings.suppress_cmdline_warning">
+              <span class="switch-thumb"></span>
+            </div>
+          </div>
           <div class="setting-row !items-start">
             <div class="setting-label-group">
               <label class="setting-label">{{ t("tool_shortcut_btn") }}</label>

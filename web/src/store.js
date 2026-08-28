@@ -76,6 +76,7 @@ const settings = reactive({
   suppress_false_upgrade_notification: false,
   show_password: false,
   debug_log: false,
+  suppress_cmdline_warning: false,
   // tabs (ported from chrome_plus tabbookmark)
   keep_last_tab: true,
   double_click_close: true,
@@ -145,6 +146,7 @@ const allTabs = [
   { id: "status", label: "nav_status", icon: "status" },
   { id: "settings", label: "nav_settings", icon: "settings" },
   { id: "proxy", label: "nav_proxy", icon: "network" },
+  { id: "resolver", label: "nav_resolver", icon: "dns" },
   { id: "tabs", label: "nav_tabs", icon: "tabs" },
   { id: "logs", label: "nav_logs", icon: "logs" },
   { id: "other", label: "nav_other", icon: "sliders" },
@@ -175,6 +177,16 @@ const chromeDataBusy = ref(false);
 const chromeDataMessage = ref("");
 const chromeDataMessageOk = ref(true);
 let toolPollTimer = null;
+
+// Domain Mapping (域名映射) state
+const resolver = reactive({
+  enabled: false,
+  refresh_interval: 0,
+  max_total: 800,
+  total_rules: 0,
+  subscriptions: [],
+  rules: [],
+});
 const channelOptions = computed(() => [
   { value: "stable", label: t("channel_stable") },
   { value: "beta", label: t("channel_beta") },
@@ -738,6 +750,93 @@ async function cleanChromeData() {
   }
 }
 
+// --- Domain Mapping (域名映射) ---
+async function loadResolver() {
+  try {
+    const d = await safeFetch(() => api.getResolver());
+    if (d) Object.assign(resolver, d);
+  } catch (e) {}
+}
+// Persist the global resolver config (enabled / refresh_interval / max_total).
+async function saveResolverConfig() {
+  try {
+    await api.updateResolverConfig({
+      enabled: resolver.enabled,
+      refresh_interval: resolver.refresh_interval,
+      max_total: resolver.max_total,
+    });
+    await loadResolver();
+    showToast(t("save_success"), "success");
+  } catch (e) {
+    showToast(t("save_failed"), "error");
+  }
+}
+async function addSubscription(name, url) {
+  try {
+    const d = await api.addSubscription({ name, url });
+    if (d && d.ok) {
+      await loadResolver();
+      showToast(t("rs_added"), "success");
+      return true;
+    }
+    showToast((d && d.error) || t("save_failed"), "error");
+    return false;
+  } catch (e) {
+    showToast(t("save_failed"), "error");
+    return false;
+  }
+}
+async function removeSubscription(index) {
+  try {
+    const d = await api.removeSubscription({ index });
+    if (d && d.ok) {
+      await loadResolver();
+      showToast(t("rs_removed"), "success");
+    } else {
+      showToast((d && d.error) || t("save_failed"), "error");
+    }
+  } catch (e) {
+    showToast(t("save_failed"), "error");
+  }
+}
+async function setSubscriptionEnabled(index, enabled) {
+  try {
+    const d = await api.setSubscriptionEnabled({ index, enabled });
+    if (d && d.ok) {
+      await loadResolver();
+    } else {
+      showToast((d && d.error) || t("save_failed"), "error");
+    }
+  } catch (e) {
+    showToast(t("save_failed"), "error");
+  }
+}
+async function refreshSubscription(index) {
+  try {
+    const d = await api.refreshSubscription({ index });
+    if (d && d.ok) {
+      await loadResolver();
+      showToast(t("rs_refreshed"), "success");
+    } else {
+      showToast((d && d.error) || t("save_failed"), "error");
+    }
+  } catch (e) {
+    showToast(t("save_failed"), "error");
+  }
+}
+async function exportResolverRules() {
+  try {
+    const d = await api.exportResolverRules();
+    if (d && d.ok) {
+      showToast(t("rs_exported"), "success");
+    } else {
+      showToast((d && d.error) || t("save_failed"), "error");
+    }
+  } catch (e) {
+    showToast(t("save_failed"), "error");
+  }
+}
+
 // One-time app initialization (called from App.vue onMounted).
 async function initApp() {
   const mq = window.matchMedia("(prefers-color-scheme: dark)");
@@ -826,6 +925,7 @@ export function useStore() {
     chromeDataBusy,
     chromeDataMessage,
     chromeDataMessageOk,
+    resolver,
     toast,
     // computeds
     channelOptions,
@@ -876,6 +976,13 @@ export function useStore() {
     createShortcut,
     refreshChromeDataStatus,
     cleanChromeData,
+    loadResolver,
+    saveResolverConfig,
+    addSubscription,
+    removeSubscription,
+    setSubscriptionEnabled,
+    refreshSubscription,
+    exportResolverRules,
     refreshStatus,
     refreshConfig,
     startStatusStream,

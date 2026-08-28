@@ -12,6 +12,7 @@
 #include "config.h"
 #include "detours.h"
 #include "diaglog.h"
+#include "hosts_manager.h"
 #include "utils.h"
 
 namespace {
@@ -255,6 +256,49 @@ std::wstring GetCommand(LPWSTR param) {
   auto processed = ProcessAndMergeArgs(main_args);
   InjectConfigPaths(processed.final_args, processed.has_user_data_dir,
                     processed.has_disk_cache_dir);
+
+  // Inject domain-mapping (域名映射) rules via Chromium's --host-resolver-rules.
+  // This only affects this Chrome (not the system hosts), needs no
+  // administrator rights, and takes effect after a restart. Guarded against a
+  // user-supplied duplicate switch.
+  if (auto resolver_switch = resolver::BuildResolverRulesSwitch();
+      !resolver_switch.empty()) {
+    // Check against a user-supplied duplicate switch.  We must look at the
+    // raw argv entries here: FindStandaloneSwitch() expects a standalone flag
+    // (followed by whitespace) and fails for --name=value forms, and JoinArgsString()
+    // would add quotes around values containing spaces.
+    bool has_resolver = false;
+    for (const auto& a : processed.final_args) {
+      if (a.starts_with(L"--host-resolver-rules=") ||
+          a == L"--host-resolver-rules") {
+        has_resolver = true;
+        break;
+      }
+    }
+    if (!has_resolver) {
+      processed.final_args.push_back(resolver_switch);
+    }
+  }
+
+  // Inject --test-type to suppress the "unsupported command-line flag" infobar
+  // (e.g. from --host-resolver-rules). Auto-enabled whenever domain mapping is
+  // on (that switch always triggers the warning); also opt-in via the explicit
+  // config switch. Has side effects (some security/warning UIs, including
+  // certificate-error prompts, are muted). Guarded against a user-supplied
+  // duplicate switch.
+  if (config.IsSuppressCmdlineWarning() || config.IsResolverEnabled()) {
+    bool has_test_type = false;
+    for (const auto& a : processed.final_args) {
+      if (a == L"--test-type" || a.starts_with(L"--test-type=")) {
+        has_test_type = true;
+        break;
+      }
+    }
+    if (!has_test_type) {
+      processed.final_args.push_back(L"--test-type");
+    }
+  }
+
   processed.final_args.insert(processed.final_args.end(), trailing_args.begin(),
                               trailing_args.end());
   return ReassembleCommandLine(processed.final_args, suffix);

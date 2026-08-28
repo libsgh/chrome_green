@@ -16,6 +16,7 @@
 #include <vector>
 
 #include "config.h"
+#include "hosts_manager.h"
 #include "keycapture.h"
 #include "downloader.h"
 #include "appid.h"
@@ -208,6 +209,7 @@ std::string GetConfigJson() {
   ss << "\"suppress_false_upgrade_notification\":" << (config.IsSuppressFalseUpgradeNotification() ? "true" : "false") << ",";
   ss << "\"show_password\":" << (config.IsShowPassword() ? "true" : "false") << ",";
   ss << "\"debug_log\":" << (config.IsDebugLog() ? "true" : "false") << ",";
+  ss << "\"suppress_cmdline_warning\":" << (config.IsSuppressCmdlineWarning() ? "true" : "false") << ",";
   // --- tabs (ported from chrome_plus tabbookmark) ---
   ss << "\"keep_last_tab\":" << (config.IsKeepLastTab() ? "true" : "false") << ",";
   ss << "\"double_click_close\":" << (config.IsDoubleClickClose() ? "true" : "false") << ",";
@@ -229,6 +231,57 @@ std::string GetConfigJson() {
     }
     ss << "\"key_mappings\":\"" << JsonEscape(km) << "\"";
   }
+  ss << "}";
+  return ss.str();
+}
+
+// Build the JSON for the domain-mapping (域名映射) config page: global config,
+// the subscription list (each with its own cached rules for the expandable
+// panels), and the aggregated effective rules (for the 生效规则 sub-tab).
+std::string GetResolverJson() {
+  std::ostringstream ss;
+  ss << "{";
+  ss << "\"enabled\":" << (config.IsResolverEnabled() ? "true" : "false") << ",";
+  ss << "\"refresh_interval\":" << config.GetResolverRefreshInterval() << ",";
+  ss << "\"max_total\":" << config.GetResolverMaxTotal() << ",";
+  ss << "\"total_rules\":" << resolver::GetTotalRuleCount() << ",";
+
+  // Subscriptions (with their cached rules for the expandable panels).
+  ss << "\"subscriptions\":[";
+  const auto& subs = config.GetResolverSubscriptions();
+  for (size_t i = 0; i < subs.size(); ++i) {
+    if (i) ss << ",";
+    const auto& s = subs[i];
+    ss << "{";
+    ss << "\"index\":" << i << ",";
+    ss << "\"name\":\"" << JsonEscape(WStringToUtf8(s.name)) << "\",";
+    ss << "\"url\":\"" << JsonEscape(WStringToUtf8(s.url)) << "\",";
+    ss << "\"enabled\":" << (s.enabled ? "true" : "false") << ",";
+    ss << "\"last_refresh\":" << s.last_refresh << ",";
+    ss << "\"rule_count\":" << s.rule_count << ",";
+    ss << "\"rules\":[";
+    auto sub_rules = resolver::GetSubscriptionRules((int)i);
+    for (size_t j = 0; j < sub_rules.size(); ++j) {
+      if (j) ss << ",";
+      ss << "{\"domain\":\"" << JsonEscape(WStringToUtf8(sub_rules[j].domain))
+         << "\",\"ip\":\"" << JsonEscape(WStringToUtf8(sub_rules[j].ip)) << "\"}";
+    }
+    ss << "]";
+    ss << "}";
+  }
+  ss << "],";
+
+  // Aggregated effective rules (enabled subscriptions only).
+  ss << "\"rules\":[";
+  auto rules = resolver::GetEffectiveRules();
+  for (size_t i = 0; i < rules.size(); ++i) {
+    if (i) ss << ",";
+    ss << "{\"domain\":\"" << JsonEscape(WStringToUtf8(rules[i].domain))
+       << "\",\"ip\":\"" << JsonEscape(WStringToUtf8(rules[i].ip))
+       << "\",\"source\":\"" << JsonEscape(WStringToUtf8(rules[i].source))
+       << "\"}";
+  }
+  ss << "]";
   ss << "}";
   return ss.str();
 }
@@ -394,6 +447,7 @@ std::string HandleRequest(const HttpRequest& req) {
     bool suppress_false = JsonGetBool(req.body, "suppress_false_upgrade_notification");
     bool show_password = JsonGetBool(req.body, "show_password");
     bool debug_log = JsonGetBool(req.body, "debug_log");
+    bool suppress_cmdline = JsonGetBool(req.body, "suppress_cmdline_warning");
     std::string key_mappings = JsonGetString(req.body, "key_mappings");
 
     // --- tabs (ported from chrome_plus tabbookmark) ---
@@ -486,6 +540,8 @@ std::string HandleRequest(const HttpRequest& req) {
         show_password ? L"1" : L"0", GetIniPath().c_str());
     WritePrivateProfileStringW(L"general", L"debug_log",
         debug_log ? L"1" : L"0", GetIniPath().c_str());
+    WritePrivateProfileStringW(L"general", L"suppress_cmdline_warning",
+        suppress_cmdline ? L"1" : L"0", GetIniPath().c_str());
 
     // --- tabs section (ported from chrome_plus tabbookmark) ---
     WritePrivateProfileStringW(L"tabs", L"keep_last_tab",
@@ -928,6 +984,94 @@ std::string HandleRequest(const HttpRequest& req) {
   if (req.method == "POST" && req.path == "/api/capture/stop") {
     StopKeyCapture();
     return BuildResponse(200, "application/json", "{\"ok\":true}");
+  }
+
+  // ===== Domain-mapping (域名映射) API =====
+
+  // API: get resolver config + subscriptions + effective rules.
+  if (req.method == "GET" && req.path == "/api/resolver") {
+    return BuildResponse(200, "application/json", GetResolverJson());
+  }
+
+  // API: set global resolver config (enabled / refresh_interval / max_total).
+  if (req.method == "POST" && req.path == "/api/resolver/config") {
+    bool enabled = JsonGetBool(req.body, "enabled");
+    int refresh_interval = JsonGetInt(req.body, "refresh_interval");
+    int max_total = JsonGetInt(req.body, "max_total");
+    if (max_total <= 0) max_total = 800;
+    WritePrivateProfileStringW(L"resolver_rules", L"enabled",
+        enabled ? L"1" : L"0", GetIniPath().c_str());
+    WritePrivateProfileStringW(L"resolver_rules", L"refresh_interval",
+        std::to_wstring(refresh_interval).c_str(), GetIniPath().c_str());
+    WritePrivateProfileStringW(L"resolver_rules", L"max_total",
+        std::to_wstring(max_total).c_str(), GetIniPath().c_str());
+    Config::Instance().ReloadConfig();
+    return BuildResponse(200, "application/json", "{\"ok\":true}");
+  }
+
+  // API: add a subscription (download + parse + enforce total cap).
+  if (req.method == "POST" && req.path == "/api/resolver/add") {
+    std::wstring name = Utf8ToWstring(JsonGetString(req.body, "name"));
+    std::wstring url = Utf8ToWstring(JsonGetString(req.body, "url"));
+    std::wstring error;
+    bool ok = resolver::AddSubscription(name, url, error);
+    std::ostringstream ss;
+    ss << "{\"ok\":" << (ok ? "true" : "false") << ",";
+    ss << "\"error\":\"" << JsonEscape(WStringToUtf8(error)) << "\"}";
+    return BuildResponse(ok ? 200 : 400, "application/json", ss.str());
+  }
+
+  // API: remove a subscription by index.
+  if (req.method == "POST" && req.path == "/api/resolver/remove") {
+    int index = JsonGetInt(req.body, "index");
+    bool ok = resolver::RemoveSubscription(index);
+    return BuildResponse(ok ? 200 : 400, "application/json",
+        ok ? "{\"ok\":true}" : "{\"ok\":false,\"error\":\"订阅不存在\"}");
+  }
+
+  // API: enable/disable a subscription.
+  if (req.method == "POST" && req.path == "/api/resolver/enable") {
+    int index = JsonGetInt(req.body, "index");
+    bool enabled = JsonGetBool(req.body, "enabled");
+    bool ok = resolver::SetSubscriptionEnabled(index, enabled);
+    return BuildResponse(ok ? 200 : 400, "application/json",
+        ok ? "{\"ok\":true}" : "{\"ok\":false,\"error\":\"订阅不存在\"}");
+  }
+
+  // API: refresh a subscription (index>=0) or all enabled subscriptions
+  // (index<0). On overflow the old cache is kept and an error is returned.
+  if (req.method == "POST" && req.path == "/api/resolver/refresh") {
+    int index = JsonGetInt(req.body, "index");
+    std::wstring error;
+    bool ok = true;
+    if (index < 0) {
+      const auto& subs = config.GetResolverSubscriptions();
+      for (size_t i = 0; i < subs.size(); ++i) {
+        if (!subs[i].enabled) continue;
+        std::wstring e;
+        if (!resolver::RefreshSubscription((int)i, e)) {
+          ok = false;
+          if (!error.empty()) error += L"; ";
+          error += subs[i].name + L": " + e;
+        }
+      }
+    } else {
+      ok = resolver::RefreshSubscription(index, error);
+    }
+    std::ostringstream ss;
+    ss << "{\"ok\":" << (ok ? "true" : "false") << ",";
+    ss << "\"error\":\"" << JsonEscape(WStringToUtf8(error)) << "\"}";
+    return BuildResponse(ok ? 200 : 400, "application/json", ss.str());
+  }
+
+  // API: export the effective (enabled) rules as a hosts-format file.
+  if (req.method == "POST" && req.path == "/api/resolver/export") {
+    std::wstring error;
+    bool ok = resolver::ExportRules("", error);
+    std::ostringstream ss;
+    ss << "{\"ok\":" << (ok ? "true" : "false") << ",";
+    ss << "\"error\":\"" << JsonEscape(WStringToUtf8(error)) << "\"}";
+    return BuildResponse(ok ? 200 : 400, "application/json", ss.str());
   }
 
   return BuildResponse(404, "text/plain", "Not Found");

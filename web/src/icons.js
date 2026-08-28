@@ -350,4 +350,25 @@ export const iconRegistry = {
       },
     ],
   },
+  dns: {
+    viewBox: "0 0 24 24",
+    nodes: [
+      {
+        tag: "rect",
+        attrs: { x: 3, y: 4, width: 18, height: 6, rx: 1.5, "stroke-width": 1.8 },
+      },
+      {
+        tag: "rect",
+        attrs: { x: 3, y: 14, width: 18, height: 6, rx: 1.5, "stroke-width": 1.8 },
+      },
+      {
+        tag: "circle",
+        attrs: { cx: 6.5, cy: 7, r: 1, "stroke-width": 1.8 },
+      },
+      {
+        tag: "circle",
+        attrs: { cx: 6.5, cy: 17, r: 1, "stroke-width": 1.8 },
+      },
+    ],
+  },
 };

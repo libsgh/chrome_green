@@ -181,6 +181,7 @@ import ProxyTab from "./components/tabs/ProxyTab.vue";
 import LogsTab from "./components/tabs/LogsTab.vue";
 import OtherTab from "./components/tabs/OtherTab.vue";
 import TabsTab from "./components/tabs/TabsTab.vue";
+import ResolverTab from "./components/tabs/ResolverTab.vue";
 
 const {
   themeMode,
@@ -206,6 +207,7 @@ const tabMap = {
   status: StatusTab,
   settings: SettingsTab,
   proxy: ProxyTab,
+  resolver: ResolverTab,
   tabs: TabsTab,
   logs: LogsTab,
   other: OtherTab,

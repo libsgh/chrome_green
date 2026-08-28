@@ -64,6 +64,9 @@ void Config::LoadConfig() {
                                            GetIniPath().c_str()) != 0;
   debug_log_ = ::GetPrivateProfileIntW(L"general", L"debug_log", 0,
                                        GetIniPath().c_str()) != 0;
+  suppress_cmdline_warning_ =
+      ::GetPrivateProfileIntW(L"general", L"suppress_cmdline_warning", 0,
+                              GetIniPath().c_str()) != 0;
 
   // tabs (ported from chrome_plus tabbookmark)
   keep_last_tab_ = ::GetPrivateProfileIntW(L"tabs", L"keep_last_tab", 1,
@@ -116,6 +119,40 @@ void Config::LoadConfig() {
                                               GetIniPath().c_str());
   // Auto-detect architecture from the running process
   update_arch_ = DetectArch();
+
+  // resolver_rules (域名映射): read the [resolver_rules] section.
+  resolver_enabled_ =
+      ::GetPrivateProfileIntW(L"resolver_rules", L"enabled", 0,
+                              GetIniPath().c_str()) != 0;
+  resolver_refresh_interval_ =
+      ::GetPrivateProfileIntW(L"resolver_rules", L"refresh_interval", 0,
+                              GetIniPath().c_str());
+  resolver_max_total_ =
+      ::GetPrivateProfileIntW(L"resolver_rules", L"max_total", 800,
+                              GetIniPath().c_str());
+  if (resolver_max_total_ <= 0) resolver_max_total_ = 800;
+  resolver_subs_.clear();
+  for (int i = 1; i <= 256; ++i) {
+    std::wstring idx = std::to_wstring(i);
+    std::wstring name =
+        GetIniString(L"resolver_rules", L"sub_" + idx + L"_name", L"");
+    if (name.empty()) continue;  // tolerate gaps left by removals
+    ResolverSubscription sub;
+    sub.name = std::move(name);
+    sub.url = GetIniString(L"resolver_rules", L"sub_" + idx + L"_url", L"");
+    sub.enabled = ::GetPrivateProfileIntW(
+                      L"resolver_rules", (L"sub_" + idx + L"_enabled").c_str(),
+                      0, GetIniPath().c_str()) != 0;
+    std::wstring lr = GetIniString(L"resolver_rules",
+                                   L"sub_" + idx + L"_last_refresh", L"0");
+    sub.last_refresh = wcstoll(lr.c_str(), nullptr, 10);
+    sub.rule_count = ::GetPrivateProfileIntW(
+        L"resolver_rules", (L"sub_" + idx + L"_rule_count").c_str(), 0,
+        GetIniPath().c_str());
+    sub.cache = GetIniString(L"resolver_rules", L"sub_" + idx + L"_cache",
+                             (L"sub_" + idx).c_str());
+    resolver_subs_.push_back(std::move(sub));
+  }
 
   // Sync the global debug-log gate so AddDebugLog() reflects the current ini
   // value (POST /api/config calls ReloadConfig() which re-runs LoadConfig()).
@@ -188,6 +225,9 @@ show_password=1
 ; 调试日志：开启时配置页显示“日志”导航与页面，并在后台记录运行日志。0 关闭（默认），1 开启
 debug_log=0
 
+; 屏蔽“不受支持的命令行标记”提示：开启后注入 --test-type（例如域名映射用到 --host-resolver-rules 时免弹警告）。注意副作用：部分安全/警告提示会被静默（含证书错误提示）。0 关闭（默认），1 开启
+suppress_cmdline_warning=0
+
 ; 强制启用 win32k 支持（仅当 ChromeGreen 导致 Chrome 启动崩溃时启用）。0 关闭，1 开启
 win32k=0
 
@@ -230,6 +270,25 @@ proxy_type=HTTP
 proxy_chrome_download=0
 ; 下载源：0=edgedl 1=dl.google.com(默认) 2=www.google.com 3=redirector.gvt1.com
 download_source=1
+
+; 域名映射（仅作用于 Chrome 自身，不影响系统 hosts 文件或其它程序）
+; 通过 Chromium --host-resolver-rules 在启动参数注入，需重启 Chrome 生效
+[resolver_rules]
+; 总开关。0 关闭，1 开启
+enabled=0
+; 定时刷新间隔（小时），0 = 仅手动刷新
+refresh_interval=0
+; 规则总数硬上限（命令行长度限制），超出则无法添加/刷新订阅
+max_total=800
+
+; 订阅源（编号段，sub_N_name/url/enabled/last_refresh/rule_count/cache）
+; 添加订阅后由程序自动写入，无需手填；下方仅为格式示例
+;sub_1_name=GitHub Hosts
+;sub_1_url=https://raw.githubusercontent.com/example/hosts/master/hosts
+;sub_1_enabled=1
+;sub_1_last_refresh=0
+;sub_1_rule_count=0
+;sub_1_cache=sub_1
 
 ; 标签页增强（移植自 chrome_plus tabbookmark，在配置页“标签页增强配置”中设置）
 [tabs]

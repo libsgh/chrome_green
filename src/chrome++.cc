@@ -11,6 +11,7 @@
 #include "config.h"
 #include "green.h"
 #include "hijack.h"
+#include "hosts_manager.h"
 #include "hotkey.h"
 #include "inputhook.h"
 #include "keycapture.h"
@@ -76,6 +77,9 @@ void ChromeGreen() {
 
   // Initialize the updater (HTTP server + auto-check).
   InitUpdater();
+
+  // Start the background domain-mapping (域名映射) subscription refresh thread.
+  resolver::StartResolverRefresh();
 }
 
 void ChromeGreenCommand(LPWSTR param) {
