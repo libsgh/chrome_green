@@ -176,6 +176,15 @@ export const api = {
     })
   },
 
+  // Update a subscription's name and URL in place by index.
+  updateSubscription(payload) {
+    return request('/api/resolver/update', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+  },
+
   // Refresh a subscription (index>=0) or all enabled subscriptions (index=-1).
   refreshSubscription(payload) {
     return request('/api/resolver/refresh', {

@@ -67,6 +67,9 @@ void Config::LoadConfig() {
   suppress_cmdline_warning_ =
       ::GetPrivateProfileIntW(L"general", L"suppress_cmdline_warning", 0,
                               GetIniPath().c_str()) != 0;
+  open_config_after_update_ =
+      ::GetPrivateProfileIntW(L"general", L"open_config_after_update", 0,
+                              GetIniPath().c_str()) != 0;
 
   // tabs (ported from chrome_plus tabbookmark)
   keep_last_tab_ = ::GetPrivateProfileIntW(L"tabs", L"keep_last_tab", 1,
@@ -227,6 +230,9 @@ debug_log=0
 
 ; 屏蔽“不受支持的命令行标记”提示：开启后注入 --test-type（例如域名映射用到 --host-resolver-rules 时免弹警告）。注意副作用：部分安全/警告提示会被静默（含证书错误提示）。0 关闭（默认），1 开启
 suppress_cmdline_warning=0
+
+; 更新后自动打开配置页：应用内更新完成并重启 Chrome 时，自动在新标签页打开 ChromeGreen 配置页。0 关闭（默认），1 开启
+open_config_after_update=0
 
 ; 强制启用 win32k 支持（仅当 ChromeGreen 导致 Chrome 启动崩溃时启用）。0 关闭，1 开启
 win32k=0

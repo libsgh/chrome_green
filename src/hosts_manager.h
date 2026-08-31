@@ -75,6 +75,13 @@ bool RemoveSubscription(int index);
 // Enable/disable a subscription (writes ini + reloads).
 bool SetSubscriptionEnabled(int index, bool enabled);
 
+// Update a subscription's name and URL in place by 0-based index. Re-downloads
+// and parses the new URL, enforces the total cap, and on success rewrites the
+// ini name/url/cache/rule_count/last_refresh. On failure (empty, download
+// error, parse error, cap overflow) the subscription is left unchanged.
+bool UpdateSubscription(int index, const std::wstring& name,
+                        const std::wstring& url, std::wstring& error);
+
 // Set the global refresh interval in hours (0 = manual). Writes ini.
 void SetRefreshInterval(int hours);
 

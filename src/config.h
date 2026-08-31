@@ -45,6 +45,11 @@ class Config {
   bool IsSuppressCmdlineWarning() const {
     return suppress_cmdline_warning_;
   }
+  // When true, the updater opens the config page after an in-app update.
+  // Defaults to false (off).
+  bool IsOpenConfigAfterUpdate() const {
+    return open_config_after_update_;
+  }
   const std::string& GetTheme() const { return theme_; }
   const std::string& GetLanguage() const { return language_; }
   bool IsWin32K() const { return win32k_; }
@@ -147,6 +152,9 @@ class Config {
   bool show_password_ = false;
   bool debug_log_ = false;
   bool suppress_cmdline_warning_ = false;
+  // When true, the updater opens the config page (http://127.0.0.1:<port>) in
+  // a new tab after an in-app update. Defaults to false (off).
+  bool open_config_after_update_ = false;
   std::string theme_;
   std::string language_;
   bool win32k_;

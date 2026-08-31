@@ -293,6 +293,19 @@
               <span class="switch-thumb"></span>
             </div>
           </div>
+          <div class="setting-row">
+            <div class="setting-label-group">
+              <label class="setting-label">{{ t("open_config_after_update") }}</label>
+              <p class="setting-desc">{{ t("open_config_after_update_desc") }}</p>
+            </div>
+            <div
+              :class="['switch-track', settings.open_config_after_update ? 'on' : 'off']"
+              @click="toggle('open_config_after_update')"
+              role="switch"
+              :aria-checked="settings.open_config_after_update">
+              <span class="switch-thumb"></span>
+            </div>
+          </div>
           <div class="setting-row !items-start">
             <div class="setting-label-group">
               <label class="setting-label">{{ t("tool_shortcut_btn") }}</label>

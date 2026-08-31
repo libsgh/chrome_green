@@ -255,9 +255,30 @@ int NextSubIndex() {
 long long NowUnix() { return (long long)time(nullptr); }
 
 void WriteSubInt(int index, const std::wstring& suffix, long long value) {
-  std::wstring key = L"sub_" + std::to_wstring(index + 1) + suffix;
+  const auto& subs = config.GetResolverSubscriptions();
+  std::wstring n;
+  if (index >= 0 && index < (int)subs.size() && !subs[index].cache.empty()) {
+    if (subs[index].cache.rfind(L"sub_", 0) == 0)
+      n = subs[index].cache.substr(4);
+  }
+  if (n.empty()) n = std::to_wstring(index + 1);
+  std::wstring key = L"sub_" + n + suffix;
   WritePrivateProfileStringW(L"resolver_rules", key.c_str(),
                               std::to_wstring(value).c_str(),
+                              GetIniPath().c_str());
+}
+
+void WriteSubString(int index, const std::wstring& suffix,
+                    const std::wstring& value) {
+  const auto& subs = config.GetResolverSubscriptions();
+  std::wstring n;
+  if (index >= 0 && index < (int)subs.size() && !subs[index].cache.empty()) {
+    if (subs[index].cache.rfind(L"sub_", 0) == 0)
+      n = subs[index].cache.substr(4);
+  }
+  if (n.empty()) n = std::to_wstring(index + 1);
+  std::wstring key = L"sub_" + n + suffix;
+  WritePrivateProfileStringW(L"resolver_rules", key.c_str(), value.c_str(),
                               GetIniPath().c_str());
 }
 
@@ -369,8 +390,11 @@ std::vector<ResolvedRule> GetEffectiveRules() {
 
 int GetTotalRuleCount() {
   int total = 0;
-  for (const auto& sub : config.GetResolverSubscriptions())
-    if (sub.enabled) total += sub.rule_count;
+  for (const auto& sub : config.GetResolverSubscriptions()) {
+    if (!sub.enabled) continue;
+    std::vector<ResolvedRule> rules;
+    if (ReadCacheFile(sub.cache, rules)) total += (int)rules.size();
+  }
   return total;
 }
 
@@ -462,8 +486,12 @@ bool RefreshSubscription(int index, std::wstring& error) {
 
   int max_total = config.GetResolverMaxTotal();
   int current = GetTotalRuleCount();
-  int old = sub.rule_count;
-  int prospective = current - old + (int)rules.size();
+  int old_count = 0;
+  if (sub.enabled) {
+    std::vector<ResolvedRule> old_rules;
+    if (ReadCacheFile(sub.cache, old_rules)) old_count = (int)old_rules.size();
+  }
+  int prospective = current - old_count + (int)rules.size();
   if (sub.enabled && prospective > max_total) {
     error = L"刷新失败：规则总数将达 " + std::to_wstring(prospective) +
            L" 超出上限 " + std::to_wstring(max_total) + L"，已保留旧内容";
@@ -483,14 +511,69 @@ bool RefreshSubscription(int index, std::wstring& error) {
 bool RemoveSubscription(int index) {
   const auto& subs = config.GetResolverSubscriptions();
   if (index < 0 || index >= (int)subs.size()) return false;
-  const auto& sub = subs[index];
-  std::wstring idx = std::to_wstring(index + 1);
-  const wchar_t* keys[] = {L"_name",  L"_url",  L"_enabled",
+
+  // Capture before we start mutating.
+  std::vector<Config::ResolverSubscription> new_subs;
+  new_subs.reserve(subs.size() - 1);
+  for (size_t i = 0; i < subs.size(); ++i) {
+    if (i != (size_t)index) new_subs.push_back(subs[i]);
+  }
+
+  const auto& removed = subs[index];
+  if (!removed.cache.empty())
+    DeleteFileW(CacheFilePath(removed.cache).c_str());
+
+  const wchar_t* keys[] = {L"_name", L"_url", L"_enabled",
                            L"_last_refresh", L"_rule_count", L"_cache"};
-  for (const wchar_t* k : keys)
-    WritePrivateProfileStringW(L"resolver_rules", (L"sub_" + idx + k).c_str(),
-                                nullptr, GetIniPath().c_str());
-  DeleteFileW(CacheFilePath(sub.cache).c_str());
+
+  // Clear the removed slot and any later slots so stale keys do not survive.
+  int max_old = 1;
+  for (const auto& s : subs) {
+    if (s.cache.rfind(L"sub_", 0) != 0) continue;
+    int n = (int)wcstoll(s.cache.substr(4).c_str(), nullptr, 10);
+    if (n > max_old) max_old = n;
+  }
+  for (int i = 1; i <= max_old; ++i) {
+    std::wstring idx = std::to_wstring(i);
+    for (const wchar_t* k : keys)
+      WritePrivateProfileStringW(L"resolver_rules",
+                                  (L"sub_" + idx + k).c_str(), nullptr,
+                                  GetIniPath().c_str());
+  }
+
+  // Rewrite remaining subscriptions with compact 1-based numbering and rename
+  // their cache files to match the new numbers.
+  for (size_t i = 0; i < new_subs.size(); ++i) {
+    std::wstring new_idx = std::to_wstring(i + 1);
+    std::wstring new_cache = L"sub_" + new_idx;
+    const auto& s = new_subs[i];
+    if (!s.cache.empty() && s.cache != new_cache) {
+      std::wstring old_path = CacheFilePath(s.cache);
+      std::wstring new_path = CacheFilePath(new_cache);
+      if (GetFileAttributesW(new_path.c_str()) != INVALID_FILE_ATTRIBUTES)
+        DeleteFileW(new_path.c_str());
+      MoveFileW(old_path.c_str(), new_path.c_str());
+    }
+    WritePrivateProfileStringW(L"resolver_rules",
+                                (L"sub_" + new_idx + L"_name").c_str(),
+                                s.name.c_str(), GetIniPath().c_str());
+    WritePrivateProfileStringW(L"resolver_rules",
+                                (L"sub_" + new_idx + L"_url").c_str(),
+                                s.url.c_str(), GetIniPath().c_str());
+    WritePrivateProfileStringW(L"resolver_rules",
+                                (L"sub_" + new_idx + L"_enabled").c_str(),
+                                s.enabled ? L"1" : L"0", GetIniPath().c_str());
+    WritePrivateProfileStringW(
+        L"resolver_rules", (L"sub_" + new_idx + L"_last_refresh").c_str(),
+        std::to_wstring(s.last_refresh).c_str(), GetIniPath().c_str());
+    WritePrivateProfileStringW(
+        L"resolver_rules", (L"sub_" + new_idx + L"_rule_count").c_str(),
+        std::to_wstring(s.rule_count).c_str(), GetIniPath().c_str());
+    WritePrivateProfileStringW(L"resolver_rules",
+                                (L"sub_" + new_idx + L"_cache").c_str(),
+                                new_cache.c_str(), GetIniPath().c_str());
+  }
+
   Config::Instance().ReloadConfig();
   return true;
 }
@@ -499,6 +582,62 @@ bool SetSubscriptionEnabled(int index, bool enabled) {
   const auto& subs = config.GetResolverSubscriptions();
   if (index < 0 || index >= (int)subs.size()) return false;
   WriteSubInt(index, L"_enabled", enabled ? 1 : 0);
+  Config::Instance().ReloadConfig();
+  return true;
+}
+
+bool UpdateSubscription(int index, const std::wstring& name,
+                        const std::wstring& url, std::wstring& error) {
+  const auto& subs = config.GetResolverSubscriptions();
+  if (index < 0 || index >= (int)subs.size()) {
+    error = L"订阅不存在";
+    return false;
+  }
+  if (name.empty() || url.empty()) {
+    error = L"名称和 URL 不能为空";
+    return false;
+  }
+  const auto& old = subs[index];
+  // Only the name changed: no re-download needed.
+  if (old.url == url) {
+    WriteSubString(index, L"_name", name);
+    Config::Instance().ReloadConfig();
+    return true;
+  }
+  std::string text;
+  if (!WinHttpGetString(WStringToUtf8(url), text, error)) return false;
+
+  std::vector<ResolvedRule> rules;
+  int invalid = 0;
+  ParseHostsText(text, rules, invalid);
+  if (rules.empty()) {
+    error = L"订阅内容为空或无可解析规则（" + std::to_wstring(invalid) +
+            L" 行无效）";
+    return false;
+  }
+
+  int max_total = config.GetResolverMaxTotal();
+  int current = GetTotalRuleCount();
+  int old_count = 0;
+  if (old.enabled) {
+    std::vector<ResolvedRule> old_rules;
+    if (ReadCacheFile(old.cache, old_rules)) old_count = (int)old_rules.size();
+  }
+  int prospective = current - old_count + (int)rules.size();
+  if (prospective > max_total) {
+    error = L"更新失败：规则总数将达 " + std::to_wstring(prospective) +
+            L" 超出上限 " + std::to_wstring(max_total) + L"，已保留旧内容";
+    return false;
+  }
+
+  if (!WriteCacheFile(old.cache, rules)) {
+    error = L"写入缓存失败";
+    return false;
+  }
+  WriteSubString(index, L"_name", name);
+  WriteSubString(index, L"_url", url);
+  WriteSubInt(index, L"_rule_count", (long long)rules.size());
+  WriteSubInt(index, L"_last_refresh", NowUnix());
   Config::Instance().ReloadConfig();
   return true;
 }

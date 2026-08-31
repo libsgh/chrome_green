@@ -466,8 +466,24 @@ static void launch_chrome(int verify) {
     if (our_running()) break;
     STARTUPINFOW si; memset(&si, 0, sizeof(si)); si.cb = sizeof(si);
     PROCESS_INFORMATION pi; memset(&pi, 0, sizeof(pi));
-    WCHAR cmd[700];
+    WCHAR cmd[1024];
     wcpy(cmd, L"\""); wcat(cmd, launch); wcat(cmd, L"\" --portable");
+    // After an in-app update, optionally open the config page in a new tab.
+    {
+      WCHAR ini[600];
+      pjoin(ini, 600, g_app_dir, L"chrome_green.ini");
+      int openCfg = (int)GetPrivateProfileIntW(L"general",
+                                               L"open_config_after_update", 0, ini);
+      int cfgPort = (int)GetPrivateProfileIntW(L"general", L"config_port", 0, ini);
+      if (openCfg && cfgPort > 0) {
+        WCHAR url[64];
+        wcpy(url, L" http://127.0.0.1:");
+        WCHAR num[12];
+        ultow((unsigned)cfgPort, num);
+        wcat(url, num);
+        wcat(cmd, url);
+      }
+    }
     if (CreateProcessW(NULL, cmd, NULL, NULL, FALSE, 0, NULL, g_app_dir, &si, &pi)) {
       CloseHandle(pi.hProcess); CloseHandle(pi.hThread);
     }

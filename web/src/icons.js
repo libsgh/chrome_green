@@ -327,6 +327,27 @@ export const iconRegistry = {
       { tag: "line", attrs: { x1: 18, y1: 6, x2: 6, y2: 18, "stroke-width": 1.8 } },
     ],
   },
+  edit: {
+    viewBox: "0 0 24 24",
+    nodes: [
+      {
+        tag: "path",
+        attrs: {
+          d: "M4 20h4L19.5 8.5a2.12 2.12 0 0 0-3-3L5 17v3Z",
+          "stroke-width": 1.8,
+          "stroke-linejoin": "round",
+        },
+      },
+      {
+        tag: "path",
+        attrs: {
+          d: "M14.5 6.5l3 3",
+          "stroke-width": 1.8,
+          "stroke-linecap": "round",
+        },
+      },
+    ],
+  },
   save: {
     viewBox: "0 0 24 24",
     nodes: [

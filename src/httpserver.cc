@@ -210,6 +210,7 @@ std::string GetConfigJson() {
   ss << "\"show_password\":" << (config.IsShowPassword() ? "true" : "false") << ",";
   ss << "\"debug_log\":" << (config.IsDebugLog() ? "true" : "false") << ",";
   ss << "\"suppress_cmdline_warning\":" << (config.IsSuppressCmdlineWarning() ? "true" : "false") << ",";
+  ss << "\"open_config_after_update\":" << (config.IsOpenConfigAfterUpdate() ? "true" : "false") << ",";
   // --- tabs (ported from chrome_plus tabbookmark) ---
   ss << "\"keep_last_tab\":" << (config.IsKeepLastTab() ? "true" : "false") << ",";
   ss << "\"double_click_close\":" << (config.IsDoubleClickClose() ? "true" : "false") << ",";
@@ -258,7 +259,10 @@ std::string GetResolverJson() {
     ss << "\"url\":\"" << JsonEscape(WStringToUtf8(s.url)) << "\",";
     ss << "\"enabled\":" << (s.enabled ? "true" : "false") << ",";
     ss << "\"last_refresh\":" << s.last_refresh << ",";
-    ss << "\"rule_count\":" << s.rule_count << ",";
+    {
+      auto sub_rules_tmp = resolver::GetSubscriptionRules((int)i);
+      ss << "\"rule_count\":" << (int)sub_rules_tmp.size() << ",";
+    }
     ss << "\"rules\":[";
     auto sub_rules = resolver::GetSubscriptionRules((int)i);
     for (size_t j = 0; j < sub_rules.size(); ++j) {
@@ -448,6 +452,7 @@ std::string HandleRequest(const HttpRequest& req) {
     bool show_password = JsonGetBool(req.body, "show_password");
     bool debug_log = JsonGetBool(req.body, "debug_log");
     bool suppress_cmdline = JsonGetBool(req.body, "suppress_cmdline_warning");
+    bool open_config_after_update = JsonGetBool(req.body, "open_config_after_update");
     std::string key_mappings = JsonGetString(req.body, "key_mappings");
 
     // --- tabs (ported from chrome_plus tabbookmark) ---
@@ -542,6 +547,8 @@ std::string HandleRequest(const HttpRequest& req) {
         debug_log ? L"1" : L"0", GetIniPath().c_str());
     WritePrivateProfileStringW(L"general", L"suppress_cmdline_warning",
         suppress_cmdline ? L"1" : L"0", GetIniPath().c_str());
+    WritePrivateProfileStringW(L"general", L"open_config_after_update",
+        open_config_after_update ? L"1" : L"0", GetIniPath().c_str());
 
     // --- tabs section (ported from chrome_plus tabbookmark) ---
     WritePrivateProfileStringW(L"tabs", L"keep_last_tab",
@@ -1074,6 +1081,19 @@ std::string HandleRequest(const HttpRequest& req) {
     return BuildResponse(ok ? 200 : 400, "application/json", ss.str());
   }
 
+  // API: update a subscription's name and URL in place by index.
+  if (req.method == "POST" && req.path == "/api/resolver/update") {
+    int index = JsonGetInt(req.body, "index");
+    std::wstring name = Utf8ToWstring(JsonGetString(req.body, "name"));
+    std::wstring url = Utf8ToWstring(JsonGetString(req.body, "url"));
+    std::wstring error;
+    bool ok = resolver::UpdateSubscription(index, name, url, error);
+    std::ostringstream ss;
+    ss << "{\"ok\":" << (ok ? "true" : "false") << ",";
+    ss << "\"error\":\"" << JsonEscape(WStringToUtf8(error)) << "\"}";
+    return BuildResponse(ok ? 200 : 400, "application/json", ss.str());
+  }
+
   return BuildResponse(404, "text/plain", "Not Found");
 }
 
@@ -1267,6 +1287,12 @@ void ServerThread() {
   }
 
   DebugLog(L"HTTP server listening on port {}", g_config_port);
+
+  // Persist the actual bound port so the updater can open the config page
+  // after an in-app update. The port is derived from the install dir but may
+  // be scan-shifted if the base was occupied, so record the real value here.
+  WritePrivateProfileStringW(L"general", L"config_port",
+      std::to_wstring(g_config_port).c_str(), GetIniPath().c_str());
 
   while (server_running_.load()) {
     // Set a timeout so we can check server_running_ periodically

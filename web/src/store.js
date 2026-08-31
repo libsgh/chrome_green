@@ -77,6 +77,7 @@ const settings = reactive({
   show_password: false,
   debug_log: false,
   suppress_cmdline_warning: false,
+  open_config_after_update: false,
   // tabs (ported from chrome_plus tabbookmark)
   keep_last_tab: true,
   double_click_close: true,
@@ -824,6 +825,19 @@ async function refreshSubscription(index) {
     showToast(t("save_failed"), "error");
   }
 }
+async function updateSubscription(index, name, url) {
+  try {
+    const d = await api.updateSubscription({ index, name, url });
+    if (d && d.ok) {
+      await loadResolver();
+      showToast(t("rs_updated"), "success");
+    } else {
+      showToast((d && d.error) || t("save_failed"), "error");
+    }
+  } catch (e) {
+    showToast(t("save_failed"), "error");
+  }
+}
 async function exportResolverRules() {
   try {
     const d = await api.exportResolverRules();
@@ -982,6 +996,7 @@ export function useStore() {
     removeSubscription,
     setSubscriptionEnabled,
     refreshSubscription,
+    updateSubscription,
     exportResolverRules,
     refreshStatus,
     refreshConfig,
