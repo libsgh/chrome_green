@@ -3,7 +3,7 @@
     <!-- Header -->
     <header
       class="border-b border-[hsl(var(--border))] bg-[hsl(var(--card))] sticky top-0 z-20">
-      <div class="max-w-3xl mx-auto px-6">
+      <div class="max-w-4xl mx-auto px-6">
         <!-- Title row -->
         <div class="py-3 flex items-center gap-3">
           <div
@@ -141,7 +141,7 @@
     </header>
 
     <!-- Main Content -->
-    <main class="max-w-3xl mx-auto px-6 py-8 space-y-6">
+    <main class="max-w-4xl mx-auto px-6 py-8 space-y-6">
       <!-- Navigation tabs -->
       <nav class="flex gap-1 pb-1 -mx-1 overflow-x-auto">
         <button
