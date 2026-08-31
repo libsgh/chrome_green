@@ -16,6 +16,7 @@ ChromeGreen is a `version.dll` injection for Google Chrome whose main goal is **
 - **Portable by design.** Redirects user data, cache, and machine-specific identifiers (computer name, volume serial, DPAPI encryption) so Chrome runs from any folder or USB drive — no installation, no registry binding.
 - **Online update for portable Chrome.** A built-in updater downloads and replaces the portable Chrome build in place; your `Data` and `Cache` are preserved, so updating never wipes your profile.
 - **In-page configuration.** The injected DLL serves a built-in config page where you can change the update channel, proxy, data/cache paths, hotkeys, and more — no need to hand-edit config files.
+- **Domain mapping.** Map domains to IPs via Chromium's `--host-resolver-rules`.
 - Configure a boss key to hide and restore Chrome windows, muting and unmuting audio at the same time.
 - Configure a web-page translation hotkey and an open-URL-group hotkey.
 - Tab enhancements (ported from chrome_plus tabbookmark):
