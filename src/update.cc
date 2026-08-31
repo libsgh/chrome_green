@@ -23,6 +23,11 @@
 #pragma comment(lib, "winhttp.lib")
 #pragma comment(lib, "version.lib")
 
+// Forward declaration: CompareSemver is defined later (near the self-update
+// path) but is also used by the Chrome-update version check in
+// ParseOmahaResponse, which appears earlier in this file.
+static int CompareSemver(const std::string& a, const std::string& b);
+
 // Global state
 UpdateStateData g_update_state;
 std::mutex g_update_mutex;
@@ -792,15 +797,20 @@ UpdateInfo CheckForUpdates(UpdateChannel channel, UpdateArch arch,
   }
 
   info.timestamp = static_cast<int64_t>(time(nullptr)) * 1000;
-  info.has_update = !info.version.empty() && !info.urls.empty();
+  std::string installed = GetInstalledChromeVersion();
+  info.has_update = !info.version.empty() && !info.urls.empty()
+      && !installed.empty() && CompareSemver(info.version, installed) > 0;
 
   if (info.has_update) {
-    AddDebugLog("Update found: " + info.version + " (" + std::to_string(info.urls.size()) +
+    AddDebugLog("Update found: " + info.version + " (installed: " + installed +
+                ", " + std::to_string(info.urls.size()) +
                 " URLs, " + std::to_string(info.size) + " bytes)");
   } else {
     AddDebugLog("No update found (version_empty=" +
                 std::string(info.version.empty() ? "true" : "false") +
-                ", urls_empty=" + std::string(info.urls.empty() ? "true" : "false") + ")");
+                ", urls_empty=" + std::string(info.urls.empty() ? "true" : "false") +
+                ", installed=" + (installed.empty() ? "<unknown>" : installed) +
+                ", remote=" + info.version + ")");
   }
 
   return info;

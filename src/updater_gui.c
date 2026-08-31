@@ -634,8 +634,29 @@ static DWORD WINAPI Worker(LPVOID lp) {
     WCHAR old_dll[600];
     pjoin(old_dll, 600, g_self_dll_dir, L"version.dll");
     SetFileAttributesW(old_dll, FILE_ATTRIBUTE_NORMAL);
-    CopyFileExW(g_self_dll_new, old_dll, NULL, NULL, NULL, 0);
-    DeleteFileW(g_self_dll_new);
+
+    if (CopyFileExW(g_self_dll_new, old_dll, NULL, NULL, NULL, 0)) {
+      DeleteFileW(g_self_dll_new);
+    } else {
+      // Mirror copy_tree's ".new" rename trick. Overwriting an existing
+      // read-only / ACL-restricted file in place fails with err=5 even when
+      // the directory itself is writable (Chrome marks its own binaries
+      // read-only). Renaming the old file aside and copying the new one as a
+      // FRESH file sidesteps the attribute/ACL block entirely — this is why
+      // the chrome.exe copy via copy_tree succeeds while the direct
+      // version.dll overwrite does not.
+      WCHAR dll_new[700];
+      wcpy(dll_new, old_dll);
+      wcat(dll_new, L".new");
+      if (MoveFileExW(old_dll, dll_new, MOVEFILE_REPLACE_EXISTING)
+          && CopyFileExW(g_self_dll_new, old_dll, NULL, NULL, NULL, 0)) {
+        DeleteFileW(g_self_dll_new);
+        DeleteFileW(dll_new);
+      } else {
+        // Keep the staged file so the update can be retried without
+        // re-downloading.
+      }
+    }
   } else {
     set_status(85, L"无需自更新 version.dll");
   }
