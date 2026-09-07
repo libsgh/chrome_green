@@ -119,7 +119,8 @@ bool LaunchUpdateWindow() {
                             CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
     if (hF == INVALID_HANDLE_VALUE) {
       const DWORD err = ::GetLastError();
-      AddDebugLog("LaunchUpdateWindow: cannot create updater exe: " +
+      AddDebugLog("LaunchUpdateWindow: cannot create updater exe (err=" +
+                  std::to_string(err) + "): " +
                   std::string(exe_path.begin(), exe_path.end()));
       return false;
     }
@@ -166,7 +167,8 @@ bool LaunchUpdateWindow() {
                             CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
     if (hF == INVALID_HANDLE_VALUE) {
       const DWORD err = ::GetLastError();
-      AddDebugLog("LaunchUpdateWindow: cannot create manifest");
+      AddDebugLog("LaunchUpdateWindow: cannot create manifest (err=" +
+                  std::to_string(err) + ")");
       DeleteFileW(exe_path.c_str());
       return false;
     }

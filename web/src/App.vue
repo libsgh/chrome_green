@@ -8,7 +8,11 @@
         <div class="py-3 flex items-center gap-3">
           <div
             class="w-8 h-8 rounded-lg bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] flex items-center justify-center shrink-0">
-            <Icon name="logo" :size="18" stroke="currentColor" :stroke-width="2.2" />
+            <Icon
+              name="logo"
+              :size="18"
+              stroke="currentColor"
+              :stroke-width="2.2" />
           </div>
           <div class="flex-1">
             <h1 class="text-sm font-semibold">{{ t("title") }}</h1>
@@ -173,15 +177,15 @@
 <script setup>
 import { onBeforeUnmount, onMounted, watch } from "vue";
 import Icon from "./components/Icon.vue";
-import { t } from "./i18n.js";
-import { useStore } from "./store.js";
-import StatusTab from "./components/tabs/StatusTab.vue";
-import SettingsTab from "./components/tabs/SettingsTab.vue";
-import ProxyTab from "./components/tabs/ProxyTab.vue";
 import LogsTab from "./components/tabs/LogsTab.vue";
 import OtherTab from "./components/tabs/OtherTab.vue";
-import TabsTab from "./components/tabs/TabsTab.vue";
+import ProxyTab from "./components/tabs/ProxyTab.vue";
 import ResolverTab from "./components/tabs/ResolverTab.vue";
+import SettingsTab from "./components/tabs/SettingsTab.vue";
+import StatusTab from "./components/tabs/StatusTab.vue";
+import TabsTab from "./components/tabs/TabsTab.vue";
+import { t } from "./i18n.js";
+import { useStore } from "./store.js";
 
 const {
   themeMode,

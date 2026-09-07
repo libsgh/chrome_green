@@ -85,6 +85,10 @@ const translations = {
     open_config_after_update: "Open config page after update",
     open_config_after_update_desc:
       "After an in-app update finishes and Chrome restarts, automatically open the ChromeGreen config page in a new tab.",
+    fix_taskbar_menu: "Fix taskbar context menu",
+    fix_taskbar_menu_desc:
+      "Register jump-list tasks (New window / Incognito / Recently opened tabs).",
+    experimental: "Experimental",
     suppress_cmdline_warning: "Suppress Unsupported Flag Warning",
     suppress_cmdline_warning_desc:
       'Inject --test-type to hide the "unsupported command-line flag" infobar (e.g. from --host-resolver-rules). Auto-enabled when domain mapping is on. Side effect: some security/warning prompts, including certificate-error prompts, are muted.',
@@ -365,6 +369,10 @@ const translations = {
     debug_log_desc: "显示“日志”导航与页面，并在后台记录运行日志（默认关闭）",
     open_config_after_update: "更新后打开配置页",
     open_config_after_update_desc: "应用内更新完成并重启 Chrome 时，自动在新标签页打开 ChromeGreen 配置页（默认关闭）。",
+    fix_taskbar_menu: "修复任务栏右键菜单",
+    fix_taskbar_menu_desc:
+      "注册跳转列表任务（新窗口/无痕窗口/最近打开的标签页）。",
+    experimental: "实验性",
     suppress_cmdline_warning: "屏蔽命令行标记警告",
     suppress_cmdline_warning_desc:
       "注入 --test-type 以消除“不受支持的命令行标记”提示（例如域名映射用到 --host-resolver-rules 时）。启用域名映射时自动生效。副作用：部分安全/警告提示会被静默，含证书错误提示。",

@@ -73,38 +73,6 @@ void ForEachLink(const std::wstring& folder,
   FindClose(h);
 }
 
-// Stamp a shortcut's AppUserModelID (PKEY_AppUserModel_ID) so the pinned taskbar
-// item and the running window share ONE identity and therefore group. The .lnk
-// is loaded, its AUMID property is overwritten, then re-saved.
-bool StampLinkAumid(const std::wstring& lnk_path, const std::wstring& aumid) {
-  IShellLinkW* psl = nullptr;
-  if (FAILED(CoCreateInstance(CLSID_ShellLink, nullptr, CLSCTX_INPROC_SERVER,
-                              IID_IShellLinkW, reinterpret_cast<void**>(&psl))))
-    return false;
-  IPersistFile* ppf = nullptr;
-  bool ok = false;
-  if (SUCCEEDED(psl->QueryInterface(IID_IPersistFile,
-                                    reinterpret_cast<void**>(&ppf)))) {
-    if (SUCCEEDED(ppf->Load(lnk_path.c_str(), STGM_READWRITE))) {
-      IPropertyStore* ps = nullptr;
-      if (SUCCEEDED(psl->QueryInterface(IID_IPropertyStore,
-                                        reinterpret_cast<void**>(&ps)))) {
-        PROPVARIANT pv{};
-        pv.vt = VT_LPWSTR;
-        pv.pwszVal = const_cast<wchar_t*>(aumid.c_str());
-        if (SUCCEEDED(ps->SetValue(PKEY_AppUserModel_ID, pv)) &&
-            SUCCEEDED(ps->Commit()) &&
-            SUCCEEDED(ppf->Save(lnk_path.c_str(), TRUE)))
-          ok = true;
-        ps->Release();
-      }
-    }
-    ppf->Release();
-  }
-  psl->Release();
-  return ok;
-}
-
 // Resolve the default (non-portable) Chrome data directory:
 //   C:\Users\<user>\AppData\Local\Google\Chrome
 std::wstring GetDefaultChromeDataDir() {
@@ -212,9 +180,6 @@ ToolsResult CreateDesktopShortcut() {
   psl->Release();
 
   if (!saved) return {false, L"Failed to save desktop shortcut", false};
-  // Stamp the AUMID so the shortcut (if later pinned to the taskbar) groups
-  // with the running window, which is forced to the same id.
-  StampLinkAumid(link_path, GetGreenAumid());
   DebugLog(L"Created desktop shortcut: {}", link_path);
   return {true, L"Desktop shortcut created", true};
 }

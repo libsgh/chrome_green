@@ -99,7 +99,7 @@
 @layer components {
 /* Button base */
   .btn {
-    @apply inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium
+    @apply inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium
            transition-colors focus-visible:outline-none focus-visible:ring-2
            focus-visible:ring-ring focus-visible:ring-offset-2
            disabled:pointer-events-none disabled:opacity-50
@@ -289,6 +289,10 @@
     @apply bg-yellow-100 text-yellow-800;
   }
 
+  .badge-experiment {
+    @apply bg-indigo-100 text-indigo-700;
+  }
+
   .badge-info {
     @apply bg-muted text-muted-foreground;
   }
@@ -307,6 +311,9 @@
   }
   .dark .badge-warning {
     @apply bg-yellow-900/40 text-yellow-300;
+  }
+  .dark .badge-experiment {
+    @apply bg-indigo-900/40 text-indigo-300;
   }
   .dark .badge-info {
     @apply bg-secondary text-muted-foreground;

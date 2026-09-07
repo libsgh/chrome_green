@@ -73,7 +73,11 @@ target("chrome_green_updater")
     -- no C runtime: custom entry, only system libs, tiny binary
     add_cflags("/GS-", "/Gs16777216", {force = true})
     add_ldflags("/NODEFAULTLIB", "/ENTRY:wWinMain", "/SUBSYSTEM:WINDOWS", {force = true})
-    add_syslinks("kernel32", "user32", "gdi32", "advapi32", "gdiplus", "shcore")
+    -- shell32/ole32: needed by stamp_chrome_aumid (SHGetPropertyStoreFromParsingName
+    -- + CoInitializeEx) to brand chrome.exe with a per-install AUMID at
+    -- install/update time.  Both are plain system libs with no CRT dependency,
+    -- safe under /NODEFAULTLIB.
+    add_syslinks("kernel32", "user32", "gdi32", "advapi32", "gdiplus", "shcore", "shell32", "ole32")
     -- Embed this freshly-linked exe into version.dll as RCDATA 1001 via
     -- src/updater_res.rc. This runs in the exe's after_build, so the exe file
     -- is guaranteed to exist at that moment.
@@ -145,7 +149,7 @@ target("chrome_green")
     -- and 7z already detects the arch via the compiler-defined _M_AMD64/_M_IX86/
     -- _M_ARM64. Only Z7_EXTRACT_ONLY / _CRT_SECURE_NO_WARNINGS are needed.
     add_defines("Z7_EXTRACT_ONLY", "_CRT_SECURE_NO_WARNINGS")
-    add_links("onecore", "propsys", "oleacc", "winhttp", "ws2_32", "bcrypt", "shlwapi", "version", "netapi32", "ole32", "oleaut32", "MMDevApi", "uuid", "UIAutomationCore")
+    add_links("onecore", "propsys", "oleacc", "winhttp", "ws2_32", "bcrypt", "shlwapi", "version", "netapi32", "ole32", "oleaut32", "MMDevApi", "uuid", "UIAutomationCore", "shell32")
     if is_mode("release") then
         -- arm64 has no vc-ltl5 prebuilt; rely on the MSVC static runtime instead.
         if not is_arch("arm64") then

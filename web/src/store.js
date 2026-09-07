@@ -78,6 +78,7 @@ const settings = reactive({
   debug_log: false,
   suppress_cmdline_warning: false,
   open_config_after_update: false,
+  fix_taskbar_menu: true,
   // tabs (ported from chrome_plus tabbookmark)
   keep_last_tab: true,
   double_click_close: true,

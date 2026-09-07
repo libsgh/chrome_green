@@ -304,6 +304,11 @@ static DWORD CALLBACK CopyCb(LARGE_INTEGER TotalFileSize,
   return PROGRESS_CONTINUE;
 }
 
+// Forward declarations (defined later, in the AUMID stamping block).
+static int is_chrome_exe(const WCHAR* name);
+static void stamp_chrome_aumid(const WCHAR* exe);
+static void patch_pinned_lnk_aumid(const WCHAR* exe, const WCHAR* aumid);
+
 static int copy_tree(const WCHAR* src, const WCHAR* dst) {
   if (!dir_exists(dst)) CreateDirectoryW(dst, NULL);
   WCHAR search[600];
@@ -329,6 +334,10 @@ static int copy_tree(const WCHAR* src, const WCHAR* dst) {
         CopyFileExW(s, d, CopyCb, NULL, NULL, 0);
         DeleteFileW(dnew);
       }
+      // Stamp a stable per-install AUMID on chrome.exe as soon as it is written
+      // (see stamp_chrome_aumid). A pinned-from-exe shortcut then gets an
+      // explicit identity with no jump list yet → only "Unpin" before launch.
+      if (is_chrome_exe(fd.cFileName)) stamp_chrome_aumid(d);
       g_copied_base += ((long long)fd.nFileSizeHigh << 32) | fd.nFileSizeLow;
     }
   } while (FindNextFileW(h, &fd));
@@ -392,6 +401,270 @@ static void wait_our_exit(int rounds) {
   }
 }
 
+// ---- AUMID stamping (so a taskbar-pinned chrome.exe shows NO jump list
+//      before the first launch: only the system "Unpin" item) ----------------
+//
+// When a user pins chrome.exe to the taskbar directly (right-click → Pin to
+// taskbar), Explorer reads the exe's PKEY_AppUserModel_ID property and uses it
+// as the shortcut's identity. If that property is ABSENT, Explorer assigns an
+// implicit path-based identity and shows Chrome's DEFAULT (English) jump list —
+// even before Chrome has ever launched. We stamp a stable EXPLICIT per-install
+// AUMID here (at install/update time, while the exe is NOT image-locked) so the
+// pinned shortcut gets an identity under which NOTHING is registered yet →
+// right-clicking it before the first launch shows only the system
+// "从任务栏取消固定" item. Once Chrome launches, appid.cc READS this exact
+// stamped value back from chrome.exe and uses it as the shared identity for the
+// process, every Chrome window, and the pinned .lnk — then registers the
+// localized Tasks under it (~2s later). So the menu appears only after the
+// browser is running, and the whole group shares one identity (single icon).
+// The stamped value matters: appid.cc relies on it matching the .lnk's AUMID,
+// so it must be a stable, per-install explicit id (FNV-1a of the install dir).
+//
+// NOTE: PROPERTYKEY + CoInitializeEx/CoUninitialize come from <windows.h>
+// (wtypes.h / combaseapi.h), so we reuse them instead of redefining. Only
+// IPropertyStore's vtable and SHGetPropertyStoreFromParsingName are declared
+// manually (those headers are not pulled in by windows.h) to keep this
+// no-CRT module header-light. The binary layouts match the SDK.
+#ifndef COINIT_APARTMENTTHREADED
+#define COINIT_APARTMENTTHREADED 0x2
+#endif
+#ifndef GPS_READWRITE
+#define GPS_READWRITE 0x2
+#endif
+#ifndef VT_LPWSTR
+#define VT_LPWSTR 31
+#endif
+
+// IID_IPropertyStore = {886D8EEB-8CF2-4446-8D02-CDBA1DBDCF99}
+static const GUID CG_IID_IPropertyStore = {
+    0x886d8eeb, 0x8cf2, 0x4446,
+    {0x8d, 0x02, 0xcd, 0xba, 0x1d, 0xbd, 0xcf, 0x99}};
+// System.AppUserModel.ID = {9F4C2855-9F79-4B39-A8D0-E1D42DE1D5F3}, PID 5
+static const PROPERTYKEY CG_PKEY_AppUserModel_ID = {
+    {0x9F4C2855, 0x9F79, 0x4B39, {0xA8, 0xD0, 0xE1, 0xD4, 0x2D, 0xE1, 0xD5, 0xF3}},
+    5};
+
+typedef struct CG_IPropertyStoreVtbl CG_IPropertyStoreVtbl;
+typedef struct CG_IPropertyStore { CG_IPropertyStoreVtbl* lpVtbl; } CG_IPropertyStore;
+struct CG_IPropertyStoreVtbl {
+  HRESULT (__stdcall* QueryInterface)(CG_IPropertyStore*, const GUID*, void**);
+  unsigned long (__stdcall* AddRef)(CG_IPropertyStore*);
+  unsigned long (__stdcall* Release)(CG_IPropertyStore*);
+  HRESULT (__stdcall* GetCount)(CG_IPropertyStore*, unsigned long*);
+  HRESULT (__stdcall* GetAt)(CG_IPropertyStore*, unsigned long, PROPERTYKEY*);
+  HRESULT (__stdcall* GetValue)(CG_IPropertyStore*, const PROPERTYKEY*, const void*);
+  HRESULT (__stdcall* SetValue)(CG_IPropertyStore*, const PROPERTYKEY*, const void*);
+  HRESULT (__stdcall* Commit)(CG_IPropertyStore*);
+};
+
+// CoInitializeEx / CoUninitialize / CoCreateInstance are already declared by
+// <windows.h> (combaseapi.h) — reuse them. Only these two (from shobjidl.h,
+// not pulled in by windows.h) are declared manually.
+HRESULT __stdcall SHGetPropertyStoreFromParsingName(const WCHAR*, void*,
+                                                    unsigned long, const GUID*,
+                                                    void**);
+void __stdcall SHChangeNotify(long event, unsigned long flags,
+                              const WCHAR* item, void*);
+
+#ifndef STGM_READWRITE
+#define STGM_READWRITE 0x2
+#endif
+#ifndef SHCNE_UPDATEITEM
+#define SHCNE_UPDATEITEM 0x20
+#endif
+#ifndef SHCNF_PATH
+#define SHCNF_PATH 0x1
+#endif
+
+// ---- minimal COM interfaces for .lnk patching (no-CRT, no shobjidl.h) ----
+
+// CLSID_ShellLink = {00021401-0000-0000-C000-000000000046}
+static const GUID CG_CLSID_ShellLink = {
+    0x00021401, 0x0000, 0x0000,
+    {0xC0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46}};
+// IID_IPersistFile = {0000010B-0000-0000-C000-000000000046}
+static const GUID CG_IID_IPersistFile = {
+    0x0000010b, 0x0000, 0x0000,
+    {0xC0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46}};
+// IID_IShellLinkW = {000214F9-0000-0000-C000-000000000046}
+static const GUID CG_IID_IShellLinkW = {
+    0x000214f9, 0x0000, 0x0000,
+    {0xC0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46}};
+
+// Minimal IPersistFile — only Load + Save are used.
+typedef struct CG_IPersistFileVtbl CG_IPersistFileVtbl;
+typedef struct CG_IPersistFile { CG_IPersistFileVtbl* lpVtbl; } CG_IPersistFile;
+struct CG_IPersistFileVtbl {
+  unsigned long (__stdcall* QueryInterface)(CG_IPersistFile*, const GUID*, void**);
+  unsigned long (__stdcall* AddRef)(CG_IPersistFile*);
+  unsigned long (__stdcall* Release)(CG_IPersistFile*);
+  HRESULT (__stdcall* GetClassID)(CG_IPersistFile*, GUID*);
+  HRESULT (__stdcall* IsDirty)(CG_IPersistFile*);
+  HRESULT (__stdcall* Load)(CG_IPersistFile*, const WCHAR*, unsigned long);
+  HRESULT (__stdcall* Save)(CG_IPersistFile*, const WCHAR*, int);
+  HRESULT (__stdcall* SaveCompleted)(CG_IPersistFile*, const WCHAR*);
+  HRESULT (__stdcall* GetCurFile)(CG_IPersistFile*, WCHAR**, unsigned long*);
+};
+
+// Minimal IShellLinkW — only GetPath is used (to match target exe).
+typedef struct CG_IShellLinkWVtbl CG_IShellLinkWVtbl;
+typedef struct CG_IShellLinkW { CG_IShellLinkWVtbl* lpVtbl; } CG_IShellLinkW;
+struct CG_IShellLinkWVtbl {
+  unsigned long (__stdcall* QueryInterface)(CG_IShellLinkW*, const GUID*, void**);
+  unsigned long (__stdcall* AddRef)(CG_IShellLinkW*);
+  unsigned long (__stdcall* Release)(CG_IShellLinkW*);
+  HRESULT (__stdcall* GetPath)(CG_IShellLinkW*, WCHAR*, int, void*, unsigned long);
+  // Rest unused but required for correct vtable layout.
+  HRESULT (__stdcall* GetIDList)(CG_IShellLinkW*, void**);
+  HRESULT (__stdcall* SetIDList)(CG_IShellLinkW*, void*);
+  HRESULT (__stdcall* GetDescription)(CG_IShellLinkW*, WCHAR*, int);
+  HRESULT (__stdcall* SetDescription)(CG_IShellLinkW*, const WCHAR*);
+  HRESULT (__stdcall* GetWorkingDirectory)(CG_IShellLinkW*, WCHAR*, int);
+  HRESULT (__stdcall* SetWorkingDirectory)(CG_IShellLinkW*, const WCHAR*);
+  HRESULT (__stdcall* GetArguments)(CG_IShellLinkW*, WCHAR*, int);
+  HRESULT (__stdcall* SetArguments)(CG_IShellLinkW*, const WCHAR*);
+  HRESULT (__stdcall* GetHotkey)(CG_IShellLinkW*, unsigned short*);
+  HRESULT (__stdcall* SetHotkey)(CG_IShellLinkW*, unsigned short);
+  HRESULT (__stdcall* GetShowCmd)(CG_IShellLinkW*, int*);
+  HRESULT (__stdcall* SetShowCmd)(CG_IShellLinkW*, int);
+  HRESULT (__stdcall* GetIconLocation)(CG_IShellLinkW*, WCHAR*, int*, int*);
+  HRESULT (__stdcall* SetIconLocation)(CG_IShellLinkW*, const WCHAR*, int);
+  HRESULT (__stdcall* GetRelativePath)(CG_IShellLinkW*, WCHAR*, int);
+  HRESULT (__stdcall* SetRelativePath)(CG_IShellLinkW*, const WCHAR*, unsigned long);
+  HRESULT (__stdcall* Resolve)(CG_IShellLinkW*, HWND, unsigned long);
+  HRESULT (__stdcall* SetPath)(CG_IShellLinkW*, const WCHAR*);
+};
+
+static int is_chrome_exe(const WCHAR* name) {
+  return (wlen(name) == 10 && wcmpI(name, L"chrome.exe") == 0);
+}
+
+static void ultohex(unsigned int v, WCHAR* b) {
+  static const WCHAR hexd[17] = L"0123456789ABCDEF";
+  for (int i = 7; i >= 0; --i) { b[i] = hexd[v & 0xF]; v >>= 4; }
+  b[8] = 0;
+}
+
+static void stamp_chrome_aumid(const WCHAR* exe) {
+  if (!file_exists(exe)) return;
+  // FNV-1a over the install dir, mirroring appid.cc Fnv1a32(GetSelfDllDir()).
+  // appid.cc reads this exact value back at runtime, so window, process and
+  // pinned .lnk all share one identity.
+  unsigned int h = 2166136261u;
+  for (int i = 0; g_app_dir[i]; ++i) {
+    h ^= (unsigned int)g_app_dir[i];
+    h *= 16777619u;
+  }
+  WCHAR aid[64];
+  wcpy(aid, L"ChromeGreen.");
+  ultohex(h, aid + wlen(aid));
+
+  CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
+  CG_IPropertyStore* ps = NULL;
+  HRESULT hr = SHGetPropertyStoreFromParsingName(exe, NULL, GPS_READWRITE,
+                                                 &CG_IID_IPropertyStore,
+                                                 (void**)&ps);
+  if (SUCCEEDED(hr) && ps) {
+    // PROPVARIANT with VT_LPWSTR pointing at our stack buffer — never call
+    // PropVariantClear on it. Layout: vt(2) + 3xWORD(6) + ptr(8) = 16 bytes.
+    struct { unsigned short vt; unsigned short r1, r2, r3; void* p; } pv;
+    memset(&pv, 0, sizeof(pv));
+    pv.vt = VT_LPWSTR;
+    pv.p = (void*)aid;
+    ps->lpVtbl->SetValue(ps, &CG_PKEY_AppUserModel_ID, &pv);
+    ps->lpVtbl->Commit(ps);
+    ps->lpVtbl->Release(ps);
+  }
+
+  // Also patch already-pinned .lnk files: a .lnk's own AUMID overrides the
+  // exe's and may still carry Chrome's native one. Must run before
+  // CoUninitialize — it uses COM.
+  patch_pinned_lnk_aumid(exe, aid);
+
+  CoUninitialize();
+}
+
+// Scan one directory for .lnk files pointing at `exe` and stamp them with
+// `aumid`. Returns number of shortcuts patched. COM must already be initialized.
+static int patch_lnk_dir(const WCHAR* dir, const WCHAR* exe, const WCHAR* aumid) {
+  WCHAR pattern[700];
+  pjoin(pattern, 700, dir, L"*.lnk");
+  WIN32_FIND_DATAW fd;
+  HANDLE h = FindFirstFileW(pattern, &fd);
+  if (h == INVALID_HANDLE_VALUE) return 0;
+  int fixed = 0;
+  do {
+    if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) continue;
+    WCHAR lnk[700];
+    pjoin(lnk, 700, dir, fd.cFileName);
+
+    CG_IPersistFile* pf = NULL;
+    HRESULT hr = CoCreateInstance(&CG_CLSID_ShellLink, NULL, CLSCTX_ALL,
+                                  &CG_IID_IPersistFile, (void**)&pf);
+    if (FAILED(hr) || !pf) continue;
+    hr = pf->lpVtbl->Load(pf, lnk, STGM_READWRITE);
+    CG_IShellLinkW* sl = NULL;
+    if (SUCCEEDED(hr))
+      hr = pf->lpVtbl->QueryInterface(pf, &CG_IID_IShellLinkW, (void**)&sl);
+    if (FAILED(hr) || !sl) { pf->lpVtbl->Release(pf); continue; }
+
+    WCHAR target[600];
+    target[0] = 0;
+    sl->lpVtbl->GetPath(sl, target, 600, NULL, 0);
+    if (wncmpI(target, exe, wlen(exe)) == 0 &&
+        (target[wlen(exe)] == 0 || target[wlen(exe)] == L' ')) {
+      // Matched! Set AUMID on this .lnk.
+      CG_IPropertyStore* ps = NULL;
+      hr = sl->lpVtbl->QueryInterface(sl, &CG_IID_IPropertyStore, (void**)&ps);
+      if (SUCCEEDED(hr) && ps) {
+        struct { unsigned short vt; unsigned short r1, r2, r3; void* p; } pv;
+        memset(&pv, 0, sizeof(pv));
+        pv.vt = VT_LPWSTR;
+        pv.p = (void*)aumid;
+        ps->lpVtbl->SetValue(ps, &CG_PKEY_AppUserModel_ID, &pv);
+        hr = ps->lpVtbl->Commit(ps);
+        ps->lpVtbl->Release(ps);
+        // CRITICAL: IPersistFile::Save flushes the change to disk. Without this,
+        // Commit() only mutates the in-memory object and the .lnk keeps its old AUMID.
+        if (SUCCEEDED(hr)) {
+          pf->lpVtbl->Save(pf, NULL, TRUE);
+          SHChangeNotify(SHCNE_UPDATEITEM, SHCNF_PATH, lnk, NULL);
+          fixed++;
+        }
+      }
+    }
+    sl->lpVtbl->Release(sl);
+    pf->lpVtbl->Release(pf);
+  } while (FindNextFileW(h, &fd));
+  FindClose(h);
+  return fixed;
+}
+
+// Patch all taskbar-pinned .lnk files pointing at `exe` to use `aumid`.
+// Covers both Win10/Win11 taskbar pin locations. COM must be initialized.
+static void patch_pinned_lnk_aumid(const WCHAR* exe, const WCHAR* aumid) {
+  WCHAR appdata[512];
+  DWORD ad_len = GetEnvironmentVariableW(L"APPDATA", appdata, 512);
+  if (!ad_len || ad_len >= 512) return;
+
+  // Classic taskbar pinned shortcuts folder (Win10 / Win11).
+  {
+    WCHAR dir[700];
+    pjoin(dir, 700, appdata,
+          L"Microsoft\\Internet Explorer\\Quick Launch\\User Pinned\\TaskBar");
+    patch_lnk_dir(dir, exe, aumid);
+  }
+  // Alternate location used by some Windows builds / Start menu pins.
+  {
+    WCHAR dir[700];
+    pjoin(dir, 700, appdata,
+          L"Microsoft\\Windows\\Application Shortcuts");
+    patch_lnk_dir(dir, exe, aumid);
+  }
+  // (Silent: 0 patched just means no matching .lnk found — normal if user
+  // hasn't pinned chrome.exe yet.)
+}
+
 // ---- update steps ----
 static void swap_chrome_new() {
   WCHAR src[600], dst[600], old[600];
@@ -405,6 +678,10 @@ static void swap_chrome_new() {
       CopyFileExW(src, dst, NULL, NULL, NULL, 0);
       DeleteFileW(src);
     }
+    // Stamp a stable per-install AUMID so a taskbar-pinned chrome.exe shows no
+    // jump list until Chrome launches (see stamp_chrome_aumid). The exe is not
+    // image-locked here (Chrome is not running), so the write succeeds.
+    stamp_chrome_aumid(dst);
   }
 }
 static void sweep_orphans() {
@@ -666,6 +943,17 @@ static DWORD WINAPI Worker(LPVOID lp) {
   WCHAR ut[600];
   pjoin(ut, 600, g_self_dll_dir, L"update_temp");
   rmtree(ut);
+  if (g_abort) goto finish;
+
+  // Stamp on EVERY update, not only when chrome.exe was recopied: an update
+  // that only bumps version.dll leaves it unstamped, and pins made from an
+  // unstamped exe fall back to Chrome's own identity. Chrome is closed here so
+  // the exe is writable; idempotent.
+  {
+    WCHAR exe[600];
+    pjoin(exe, 600, g_app_dir, L"chrome.exe");
+    if (file_exists(exe)) stamp_chrome_aumid(exe);
+  }
   if (g_abort) goto finish;
 
   set_status(98, L"正在启动 Chrome…");

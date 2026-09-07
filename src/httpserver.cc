@@ -211,6 +211,7 @@ std::string GetConfigJson() {
   ss << "\"debug_log\":" << (config.IsDebugLog() ? "true" : "false") << ",";
   ss << "\"suppress_cmdline_warning\":" << (config.IsSuppressCmdlineWarning() ? "true" : "false") << ",";
   ss << "\"open_config_after_update\":" << (config.IsOpenConfigAfterUpdate() ? "true" : "false") << ",";
+  ss << "\"fix_taskbar_menu\":" << (config.IsFixTaskbarMenu() ? "true" : "false") << ",";
   // --- tabs (ported from chrome_plus tabbookmark) ---
   ss << "\"keep_last_tab\":" << (config.IsKeepLastTab() ? "true" : "false") << ",";
   ss << "\"double_click_close\":" << (config.IsDoubleClickClose() ? "true" : "false") << ",";
@@ -371,7 +372,8 @@ int JsonGetInt(const std::string& json, const std::string& key) {
 // --- HTTP response builder ---
 
 std::string BuildResponse(int status, const std::string& content_type,
-                          const std::string& body) {
+                          const std::string& body,
+                          const std::string& extra_headers = "") {
   const char* status_text = "OK";
   switch (status) {
     case 200: status_text = "OK"; break;
@@ -389,6 +391,7 @@ std::string BuildResponse(int status, const std::string& content_type,
   ss << "Access-Control-Allow-Origin: *\r\n";
   ss << "Access-Control-Allow-Methods: GET, POST, OPTIONS\r\n";
   ss << "Access-Control-Allow-Headers: Content-Type, Authorization\r\n";
+  ss << extra_headers;
   ss << "\r\n";
   ss << body;
   return ss.str();
@@ -406,7 +409,11 @@ std::string HandleRequest(const HttpRequest& req) {
   // Serve the Vue3 config page
   if (req.method == "GET" && (req.path == "/" || req.path == "/config" ||
                                req.path == "/index.html")) {
-    return BuildResponse(200, "text/html; charset=utf-8", GetWebContent());
+    // no-cache: the embedded page is rebuilt with each DLL update, so the
+    // browser must always revalidate (full refetch — we have no validators)
+    // instead of serving a stale heuristic-cached copy that needs Ctrl+F5.
+    return BuildResponse(200, "text/html; charset=utf-8", GetWebContent(),
+                         "Cache-Control: no-cache\r\n");
   }
 
   // API: get status
@@ -453,6 +460,7 @@ std::string HandleRequest(const HttpRequest& req) {
     bool debug_log = JsonGetBool(req.body, "debug_log");
     bool suppress_cmdline = JsonGetBool(req.body, "suppress_cmdline_warning");
     bool open_config_after_update = JsonGetBool(req.body, "open_config_after_update");
+    bool fix_taskbar_menu = JsonGetBool(req.body, "fix_taskbar_menu");
     std::string key_mappings = JsonGetString(req.body, "key_mappings");
 
     // --- tabs (ported from chrome_plus tabbookmark) ---
@@ -549,6 +557,8 @@ std::string HandleRequest(const HttpRequest& req) {
         suppress_cmdline ? L"1" : L"0", GetIniPath().c_str());
     WritePrivateProfileStringW(L"general", L"open_config_after_update",
         open_config_after_update ? L"1" : L"0", GetIniPath().c_str());
+    WritePrivateProfileStringW(L"general", L"fix_taskbar_menu",
+        fix_taskbar_menu ? L"1" : L"0", GetIniPath().c_str());
 
     // --- tabs section (ported from chrome_plus tabbookmark) ---
     WritePrivateProfileStringW(L"tabs", L"keep_last_tab",

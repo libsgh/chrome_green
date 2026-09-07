@@ -269,6 +269,24 @@
         <section v-show="activeGroup === 'debug'" class="space-y-5">
           <div class="setting-row">
             <div class="setting-label-group">
+              <label class="setting-label flex items-center gap-2">
+                <span>{{ t("fix_taskbar_menu") }}</span>
+                <span class="badge badge-experiment text-xs">{{
+                  t("experimental")
+                }}</span>
+              </label>
+              <p class="setting-desc">{{ t("fix_taskbar_menu_desc") }}</p>
+            </div>
+            <div
+              :class="['switch-track', settings.fix_taskbar_menu ? 'on' : 'off']"
+              @click="toggle('fix_taskbar_menu')"
+              role="switch"
+              :aria-checked="settings.fix_taskbar_menu">
+              <span class="switch-thumb"></span>
+            </div>
+          </div>
+          <div class="setting-row">
+            <div class="setting-label-group">
               <label class="setting-label">{{ t("debug_log") }}</label>
               <p class="setting-desc">{{ t("debug_log_desc") }}</p>
             </div>

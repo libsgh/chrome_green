@@ -802,15 +802,10 @@ UpdateInfo CheckForUpdates(UpdateChannel channel, UpdateArch arch,
 
   info.timestamp = static_cast<int64_t>(time(nullptr)) * 1000;
   std::string installed = GetInstalledChromeVersion();
-  if (allow_downgrade) {
-    // Channel was switched since the last completed check: any different
-    // remote version counts (canary 154 -> stable 152 is a valid "update").
-    info.has_update = !info.version.empty() && !info.urls.empty()
-        && !installed.empty() && info.version != installed;
-  } else {
-    info.has_update = !info.version.empty() && !info.urls.empty()
-        && !installed.empty() && CompareSemver(info.version, installed) > 0;
-  }
+  // Any version difference counts as an update — an older remote is offered
+  // too, so channel switches and rollbacks are always possible.
+  info.has_update = !info.version.empty() && !info.urls.empty()
+      && !installed.empty() && info.version != installed;
 
   if (info.has_update) {
     AddDebugLog("Update found: " + info.version + " (installed: " + installed +

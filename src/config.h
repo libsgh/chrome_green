@@ -50,6 +50,12 @@ class Config {
   bool IsOpenConfigAfterUpdate() const {
     return open_config_after_update_;
   }
+  // When true, fix the taskbar context menu by registering localized jump-list
+  // Tasks (New window / Incognito / Recent) under our stable per-install AUMID.
+  // Experimental and ON by default. When off, a portable Chrome pinned to the
+  // taskbar by any method shows only the system "Unpin" item in its right-click
+  // menu (no Tasks are registered under the AUMID).
+  bool IsFixTaskbarMenu() const { return fix_taskbar_menu_; }
   const std::string& GetTheme() const { return theme_; }
   const std::string& GetLanguage() const { return language_; }
   bool IsWin32K() const { return win32k_; }
@@ -155,6 +161,8 @@ class Config {
   // When true, the updater opens the config page (http://127.0.0.1:<port>) in
   // a new tab after an in-app update. Defaults to false (off).
   bool open_config_after_update_ = false;
+  // Fix taskbar context menu (experimental). ON by default.
+  bool fix_taskbar_menu_ = true;
   std::string theme_;
   std::string language_;
   bool win32k_;

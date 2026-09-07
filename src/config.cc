@@ -70,6 +70,9 @@ void Config::LoadConfig() {
   open_config_after_update_ =
       ::GetPrivateProfileIntW(L"general", L"open_config_after_update", 0,
                               GetIniPath().c_str()) != 0;
+  fix_taskbar_menu_ =
+      ::GetPrivateProfileIntW(L"general", L"fix_taskbar_menu", 1,
+                              GetIniPath().c_str()) != 0;
 
   // tabs (ported from chrome_plus tabbookmark)
   keep_last_tab_ = ::GetPrivateProfileIntW(L"tabs", L"keep_last_tab", 1,
@@ -233,6 +236,11 @@ suppress_cmdline_warning=0
 
 ; 更新后自动打开配置页：应用内更新完成并重启 Chrome 时，自动在新标签页打开 ChromeGreen 配置页。0 关闭（默认），1 开启
 open_config_after_update=0
+
+; 修复任务栏右键上下文菜单（实验性）：开启后在该安装专属标识下注册本地化的跳转列表任务
+;（新窗口/无痕窗口/最近打开的标签页），使任务栏右键菜单正确显示。关闭后，固定到任务栏的便携
+; Chrome 右键菜单仅显示“取消固定”。0 关闭，1 开启（默认，实验性功能）
+fix_taskbar_menu=1
 
 ; 强制启用 win32k 支持（仅当 ChromeGreen 导致 Chrome 启动崩溃时启用）。0 关闭，1 开启
 win32k=0
