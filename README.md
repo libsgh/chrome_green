@@ -11,6 +11,9 @@ English | [简体中文](README.zh-CN.md)
 
 ChromeGreen is a `version.dll` injection for Google Chrome whose main goal is **portability and in-place online updates**. It turns Chrome into a self-contained, carry-anywhere app, keeps that portable install current with a **built-in online updater**, and lets you tweak every setting from a **built-in config page** — no file editing required.
 
+> [!NOTE]
+> Microsoft Edge is not supported yet — the injection works with Google Chrome only.
+
 ## Core Features
 
 - **Portable by design.** Redirects user data, cache, and machine-specific identifiers (computer name, volume serial, DPAPI encryption) so Chrome runs from any folder or USB drive — no installation, no registry binding.
