@@ -480,20 +480,43 @@ void CheckThread() {
   UpdateArch active_arch;
   std::string active_proxy;
   std::string active_proxy_type;
+  std::string prev_checked_channel;
   {
     std::lock_guard<std::mutex> lock(g_update_mutex);
     active_channel = g_update_state.channel;
     active_arch = g_update_state.arch;
     active_proxy = g_update_state.proxy;
     active_proxy_type = g_update_state.proxy_type;
+    prev_checked_channel = g_update_state.last_checked_channel;
+  }
+
+  // Channel switched since the last completed check -> allow downgrade
+  // (e.g. canary 154 -> stable 152). prev stays empty until the first
+  // successful check after this build is installed, so a fresh install
+  // never triggers a spurious downgrade.
+  bool channel_switched = !prev_checked_channel.empty() &&
+                          prev_checked_channel != ChannelToStringA(active_channel);
+  if (channel_switched) {
+    AddDebugLog("Channel changed since last check (" + prev_checked_channel +
+                " -> " + ChannelToStringA(active_channel) +
+                "), downgrade allowed");
   }
 
   UpdateInfo info = CheckForUpdates(active_channel, active_arch,
-                                     active_proxy, active_proxy_type);
+                                     active_proxy, active_proxy_type,
+                                     channel_switched);
 
   {
     std::lock_guard<std::mutex> lock(g_update_mutex);
     g_update_state.last_check_time = static_cast<int64_t>(time(nullptr));
+
+    // Refresh last_checked_channel UNLESS a downgrade is now pending —
+    // keeping the old value lets the download re-check (TriggerDownload)
+    // re-derive allow_downgrade=true, and it self-heals on the next check
+    // after the downgrade is applied (remote == installed -> no update).
+    if (!(channel_switched && info.has_update)) {
+      g_update_state.last_checked_channel = ChannelToStringA(active_channel);
+    }
 
     if (info.has_update) {
       g_update_state.latest_version = info.version;
@@ -701,9 +724,16 @@ void TriggerDownload() {
   }
   SaveUpdateState();
 
-  // Re-query Omaha to get download URLs (they may have expired)
+  // Re-query Omaha to get download URLs (they may have expired).
+  // If this download follows a channel switch, last_checked_channel still
+  // holds the OLD channel (CheckThread keeps it while a downgrade is
+  // pending), so re-derive allow_downgrade here — otherwise the re-check
+  // would reject the older version ("No download URL available").
+  bool dl_channel_switched = !state.last_checked_channel.empty() &&
+                             state.last_checked_channel != ChannelToStringA(state.channel);
   UpdateInfo info = CheckForUpdates(state.channel, state.arch,
-                                     state.proxy, state.proxy_type);
+                                     state.proxy, state.proxy_type,
+                                     dl_channel_switched);
   if (!info.has_update || info.urls.empty()) {
     SetUpdateError("No download URL available");
     return;

@@ -53,6 +53,10 @@ struct UpdateStateData {
   std::string latest_version;     // latest available version
   UpdateChannel channel = UpdateChannel::kStable;
   UpdateArch arch = UpdateArch::kX64;
+  // Channel used by the last COMPLETED update check ("" = never checked).
+  // When it differs from `channel`, the next check allows a version
+  // DOWNGRADE (e.g. canary 154 -> stable 152 after switching channels).
+  std::string last_checked_channel;
   int download_progress = 0;      // 0-100
   int64_t download_size = 0;      // total bytes to download
   int64_t downloaded_bytes = 0;   // bytes downloaded so far
@@ -101,9 +105,13 @@ void SetUpdateError(const std::string& msg);
 
 // Omaha protocol: check for updates
 // Returns UpdateInfo with has_update=true if a newer version is available.
+// allow_downgrade: treat remote != installed as an update (used right after
+// the user switches channels, where the target channel's latest is OLDER
+// than the installed build — a downgrade, not an upgrade).
 UpdateInfo CheckForUpdates(UpdateChannel channel, UpdateArch arch,
                            const std::string& proxy,
-                           const std::string& proxy_type);
+                           const std::string& proxy_type,
+                           bool allow_downgrade = false);
 
 // Get the Chrome appid for a given channel
 // Stable/Dev/Beta: {8A69D345-D564-463C-AFF1-A69D9E530F96}

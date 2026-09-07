@@ -433,6 +433,7 @@ void LoadUpdateState() {
     }
   }
   g_update_state.channel = ParseChannel(Utf8ToWstr(find_str("channel")));
+  g_update_state.last_checked_channel = find_str("last_checked_channel");
   g_update_state.download_progress = (int)find_num("download_progress");
   g_update_state.download_size = find_num("download_size");
   g_update_state.downloaded_bytes = find_num("downloaded_bytes");
@@ -470,6 +471,7 @@ void SaveUpdateState() {
   ss << "\"current_version\":\"" << JsonEscape(g_update_state.current_version) << "\",";
   ss << "\"latest_version\":\"" << JsonEscape(g_update_state.latest_version) << "\",";
   ss << "\"channel\":\"" << ChannelToStringA(g_update_state.channel) << "\",";
+  ss << "\"last_checked_channel\":\"" << JsonEscape(g_update_state.last_checked_channel) << "\",";
   ss << "\"download_progress\":" << g_update_state.download_progress << ",";
   ss << "\"download_size\":" << g_update_state.download_size << ",";
   ss << "\"downloaded_bytes\":" << g_update_state.downloaded_bytes << ",";
@@ -532,12 +534,14 @@ void SetUpdateError(const std::string& msg) {
 
 UpdateInfo CheckForUpdates(UpdateChannel channel, UpdateArch arch,
                            const std::string& proxy,
-                           const std::string& proxy_type) {
+                           const std::string& proxy_type,
+                           bool allow_downgrade) {
   UpdateInfo info;
 
   AddDebugLog("Update check started — channel: " + std::string(ChannelToStringA(channel)) +
               ", arch: " + std::string(ArchToString(arch)) +
-              (proxy.empty() ? "" : ", proxy: " + proxy));
+              (proxy.empty() ? "" : ", proxy: " + proxy) +
+              (allow_downgrade ? ", allow_downgrade (channel switched)" : ""));
 
   // Go reference code sends version="" (empty) — the server returns the latest
   // regardless of what's installed. This is the correct approach.
@@ -798,11 +802,19 @@ UpdateInfo CheckForUpdates(UpdateChannel channel, UpdateArch arch,
 
   info.timestamp = static_cast<int64_t>(time(nullptr)) * 1000;
   std::string installed = GetInstalledChromeVersion();
-  info.has_update = !info.version.empty() && !info.urls.empty()
-      && !installed.empty() && CompareSemver(info.version, installed) > 0;
+  if (allow_downgrade) {
+    // Channel was switched since the last completed check: any different
+    // remote version counts (canary 154 -> stable 152 is a valid "update").
+    info.has_update = !info.version.empty() && !info.urls.empty()
+        && !installed.empty() && info.version != installed;
+  } else {
+    info.has_update = !info.version.empty() && !info.urls.empty()
+        && !installed.empty() && CompareSemver(info.version, installed) > 0;
+  }
 
   if (info.has_update) {
     AddDebugLog("Update found: " + info.version + " (installed: " + installed +
+                (allow_downgrade ? ", channel switch/downgrade" : "") +
                 ", " + std::to_string(info.urls.size()) +
                 " URLs, " + std::to_string(info.size) + " bytes)");
   } else {
@@ -810,7 +822,8 @@ UpdateInfo CheckForUpdates(UpdateChannel channel, UpdateArch arch,
                 std::string(info.version.empty() ? "true" : "false") +
                 ", urls_empty=" + std::string(info.urls.empty() ? "true" : "false") +
                 ", installed=" + (installed.empty() ? "<unknown>" : installed) +
-                ", remote=" + info.version + ")");
+                ", remote=" + info.version +
+                (allow_downgrade ? ", allow_downgrade" : "") + ")");
   }
 
   return info;
