@@ -36,6 +36,61 @@ bool KeyEquals(REFPROPERTYKEY a, const PROPERTYKEY& b) {
   return a.fmtid == b.fmtid && a.pid == b.pid;
 }
 
+// Split the process command line into arguments the way Chromium's own
+// CommandLine parser does: a '"' toggles quoting anywhere inside a token and
+// is dropped; whitespace outside quotes separates arguments.
+//
+// This matters because portable.cc quotes a WHOLE switch when its value
+// contains a space (QuoteSpaceIfNeeded in utils.cc), so the line contains
+//   "--user-data-dir=D:\Program Files\Chrome\Data"
+// A naive `wcsstr("--user-data-dir=")` scan then stops at the space and yields
+// "D:\Program" — which made the History / Favicons / Local State lookups point
+// into a non-existent directory whenever Chrome lives under a path with a
+// space (e.g. "Program Files"), silently emptying the Recent category.
+std::vector<std::wstring> TokenizeCommandLine() {
+  std::vector<std::wstring> args;
+  const wchar_t* p = GetCommandLineW();
+  if (!p) return args;
+  std::wstring cur;
+  bool in_quotes = false;
+  bool have_cur = false;
+  for (; *p; ++p) {
+    const wchar_t c = *p;
+    if (c == L'"') {
+      in_quotes = !in_quotes;
+      have_cur = true;
+      continue;
+    }
+    if (!in_quotes && (c == L' ' || c == L'\t')) {
+      if (have_cur) {
+        args.push_back(cur);
+        cur.clear();
+        have_cur = false;
+      }
+      continue;
+    }
+    cur += c;
+    have_cur = true;
+  }
+  if (have_cur) args.push_back(cur);
+  return args;
+}
+
+// Value of a `--key=value` switch (`key` must include the trailing '='), or "".
+std::wstring GetCmdArgValue(const wchar_t* key) {
+  const std::wstring k(key);
+  for (const std::wstring& a : TokenizeCommandLine()) {
+    if (a.size() > k.size() && a.compare(0, k.size(), k) == 0)
+      return a.substr(k.size());
+  }
+  return L"";
+}
+
+bool FileExists(const wchar_t* path) {
+  if (!path || !*path) return false;
+  return GetFileAttributesW(path) != INVALID_FILE_ATTRIBUTES;
+}
+
 // Chrome's own jump-list task labels, per locale. These are stable UI strings
 // that rarely change, so hardcoding them (rather than parsing Chrome's locale
 // pak, whose GRIT resource ids shift every version) keeps our Tasks visually
@@ -152,21 +207,11 @@ std::wstring ReadLangToken(const wchar_t* q) {
 // rather than as a --lang flag, so to match native Chrome's jump-list language
 // we read it directly.  Returns e.g. "en-us" or "" on any failure.
 static std::wstring ReadChromeLocaleFromLocalState() {
-  // Resolve user-data-dir (mirrors GetCmdArg but kept local to avoid a forward
-  // declaration; portable mode injects --user-data-dir into the command line,
-  // which GetCommandLineW() returns with the hook applied).
-  std::wstring ud;
-  const wchar_t* cl = GetCommandLineW();
-  const wchar_t* u = wcsstr(cl, L"--user-data-dir=");
-  if (u) {
-    u += wcslen(L"--user-data-dir=");
-    if (*u == L'"') {
-      ++u;
-      while (*u && *u != L'"') ud += *u++;
-    } else {
-      while (*u && *u != L' ' && *u != L'\t') ud += *u++;
-    }
-  }
+  // Resolve user-data-dir. Portable mode injects --user-data-dir into the
+  // command line, which GetCommandLineW() returns with the hook applied. The
+  // switch is quoted as a whole when its value contains a space, so it must be
+  // parsed with the same tokenizer (see TokenizeCommandLine).
+  std::wstring ud = GetCmdArgValue(L"--user-data-dir=");
   if (ud.empty()) {
     wchar_t la[MAX_PATH] = {0};
     DWORD n = GetEnvironmentVariableW(L"LOCALAPPDATA", la, MAX_PATH);
@@ -895,7 +940,11 @@ static void RegisterTasks(const std::wstring& aumid) {
         AddDebugLog("appid: Recent category: failed to create collection");
       }
     } else {
-      AddDebugLog("appid: Recent category: no items (History empty/unreadable)");
+      AddDebugLog(std::string("appid: Recent category: no items (History "
+                              "empty/unreadable) path=") +
+                  WstrToUtf8(g_history_path) +
+                  (FileExists(g_history_path.c_str()) ? " (exists)"
+                                                      : " (MISSING)"));
     }
   }
   // --- End Recent category ---
@@ -1157,26 +1206,40 @@ static void FixPinnedShortcutAumid(const std::wstring& exe,
   AddDebugLog("appid: FixPinnedShortcut patched=" + std::to_string(total));
 }
 
-// Resolve the path to Chrome's History SQLite DB. We are loaded into the
-// chrome.exe process, so GetCommandLineW gives the real launch args.
-static std::wstring GetCmdArg(const wchar_t* key) {
-  const wchar_t* cl = GetCommandLineW();
-  const wchar_t* p = wcsstr(cl, key);
-  if (!p) return L"";
-  p += wcslen(key);
-  std::wstring v;
-  if (*p == L'"') {
-    ++p;
-    while (*p && *p != L'"') v += *p++;
-  } else {
-    while (*p && !iswspace(*p)) v += *p++;
-  }
-  return v;
+// Last-resort profile lookup: pick the <user-data-dir>\<profile>\History file
+// with the newest write time. That is the profile Chrome is actually using even
+// when it is not "Default" and no --profile-directory switch was passed.
+static std::wstring FindNewestHistory(const std::wstring& user_data_dir) {
+  if (user_data_dir.empty()) return L"";
+  WIN32_FIND_DATAW fd;
+  HANDLE h = FindFirstFileW((user_data_dir + L"\\*").c_str(), &fd);
+  if (h == INVALID_HANDLE_VALUE) return L"";
+  std::wstring best;
+  FILETIME best_time{};
+  do {
+    if (!(fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) continue;
+    if (fd.cFileName[0] == L'.') continue;
+    std::wstring hp =
+        user_data_dir + L"\\" + fd.cFileName + L"\\History";
+    WIN32_FIND_DATAW hfd;
+    HANDLE hh = FindFirstFileW(hp.c_str(), &hfd);
+    if (hh == INVALID_HANDLE_VALUE) continue;
+    FindClose(hh);
+    if (best.empty() || CompareFileTime(&hfd.ftLastWriteTime, &best_time) > 0) {
+      best = hp;
+      best_time = hfd.ftLastWriteTime;
+    }
+  } while (FindNextFileW(h, &fd));
+  FindClose(h);
+  return best;
 }
 
+// Resolve the path to Chrome's History SQLite DB. We are loaded into the
+// chrome.exe process, so GetCommandLineW gives the real launch args (with the
+// portable --user-data-dir injection applied). Switches are parsed with
+// GetCmdArgValue so values containing spaces survive.
 static std::wstring GetHistoryPath() {
-  std::wstring ud = GetCmdArg(L"--user-data-dir=");
-  std::wstring prof = GetCmdArg(L"--profile-directory=");
+  std::wstring ud = GetCmdArgValue(L"--user-data-dir=");
   std::wstring base;
   if (!ud.empty()) {
     base = ud;
@@ -1189,8 +1252,14 @@ static std::wstring GetHistoryPath() {
       return L"";  // unknown location
   }
   if (base.empty()) return L"";
-  std::wstring dir = base + L"\\" + (prof.empty() ? L"Default" : prof);
-  return dir + L"\\History";
+  std::wstring prof = GetCmdArgValue(L"--profile-directory=");
+  std::wstring hp =
+      base + L"\\" + (prof.empty() ? L"Default" : prof) + L"\\History";
+  if (FileExists(hp.c_str())) return hp;
+  // Wrong profile name (or a renamed/moved profile): fall back to whichever
+  // profile was used last instead of giving up on the Recent category.
+  std::wstring found = FindNewestHistory(base);
+  return found.empty() ? hp : found;
 }
 
 // Favicons DB lives in the same profile directory as History.
@@ -1329,7 +1398,10 @@ void SetAppId() {
         g_resolved_aumid = aid;
         g_history_path = GetHistoryPath();
         g_favicons_path = GetFaviconsPath();
-        AddDebugLog("appid: history path=" + WstrToUtf8(g_history_path));
+        AddDebugLog(std::string("appid: history path=") +
+                    WstrToUtf8(g_history_path) +
+                    (FileExists(g_history_path.c_str()) ? " (exists)"
+                                                        : " (MISSING)"));
         AddDebugLog("appid: favicons path=" + WstrToUtf8(g_favicons_path));
         AddDebugLog("appid: AUMID=" + WstrToUtf8(aid));
 
