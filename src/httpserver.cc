@@ -188,6 +188,7 @@ std::string GetConfigJson() {
   // --- general (portable / launch / hotkeys) ---
   ss << "\"data_dir\":\"" << JsonEscape(WStringToUtf8(config.GetUserDataDirRaw())) << "\",";
   ss << "\"cache_dir\":\"" << JsonEscape(WStringToUtf8(config.GetDiskCacheDirRaw())) << "\",";
+  ss << "\"cg_data_dir\":\"" << JsonEscape(WStringToUtf8(config.GetCgDataDirRaw())) << "\",";
   ss << "\"command_line\":\"" << JsonEscape(WStringToUtf8(config.GetCommandLine())) << "\",";
   ss << "\"launch_on_startup\":\"" << JsonEscape(WStringToUtf8(config.GetLaunchOnStartup())) << "\",";
   ss << "\"launch_on_exit\":\"" << JsonEscape(WStringToUtf8(config.GetLaunchOnExit())) << "\",";
@@ -445,6 +446,7 @@ std::string HandleRequest(const HttpRequest& req) {
     // --- general (portable / launch / hotkeys) ---
     std::string data_dir = JsonGetString(req.body, "data_dir");
     std::string cache_dir = JsonGetString(req.body, "cache_dir");
+    std::string cg_data_dir = JsonGetString(req.body, "cg_data_dir");
     std::string command_line = JsonGetString(req.body, "command_line");
     std::string launch_on_startup = JsonGetString(req.body, "launch_on_startup");
     std::string launch_on_exit = JsonGetString(req.body, "launch_on_exit");
@@ -521,6 +523,9 @@ std::string HandleRequest(const HttpRequest& req) {
         GetIniPath().c_str());
     WritePrivateProfileStringW(L"general", L"cache_dir",
         Utf8ToWstring(cache_dir).c_str(),
+        GetIniPath().c_str());
+    WritePrivateProfileStringW(L"general", L"cg_data_dir",
+        Utf8ToWstring(cg_data_dir).c_str(),
         GetIniPath().c_str());
     WritePrivateProfileStringW(L"general", L"command_line",
         Utf8ToWstring(command_line).c_str(),
@@ -648,10 +653,18 @@ std::string HandleRequest(const HttpRequest& req) {
       }
     }
 
+    // Capture the data-root BEFORE reload so a directory change can migrate the
+    // old ChromeGreenData (favicons + update state) to the new location.
+    std::optional<std::wstring> cg_old_root = Config::Instance().GetCgDataRoot();
+
     // Reload the singleton from ini so the just-written values are visible to
     // the next GET /api/config (otherwise GetConfigJson reads stale values and
     // the frontend's refreshConfig() overwrites the user's change immediately).
     Config::Instance().ReloadConfig();
+
+    // If the ChromeGreen data directory changed, migrate the old data to it.
+    Config::Instance().MigrateCgDataOnDirChange(
+        cg_old_root, Config::Instance().GetCgDataRoot());
 
     // Update global state
     {

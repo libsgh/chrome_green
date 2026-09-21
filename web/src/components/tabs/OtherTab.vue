@@ -45,6 +45,19 @@
                 placeholder="%app%\..\Cache" />
             </div>
           </div>
+          <div class="setting-row">
+            <div class="setting-label-group">
+              <label class="setting-label">{{ t("cg_data_dir") }}</label>
+              <p class="setting-desc">{{ t("cg_data_dir_desc") }}</p>
+            </div>
+            <div class="w-80 max-w-full">
+              <input
+                v-model="settings.cg_data_dir"
+                @blur="saveSettings"
+                class="input"
+                placeholder="%app%\..\Cache" />
+            </div>
+          </div>
         </section>
 
         <!-- Startup Behavior -->

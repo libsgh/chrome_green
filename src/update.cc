@@ -19,6 +19,7 @@
 
 #include "utils.h"
 #include "version.h"
+#include "config.h"
 
 #pragma comment(lib, "winhttp.lib")
 #pragma comment(lib, "version.lib")
@@ -291,11 +292,13 @@ std::string GetInstalledChromeVersion() {
 }
 
 std::wstring GetUpdateStatePath() {
-  // Place the state file inside Chrome's data directory (<DLL dir>\..\Data)
-  // so it lives with the browser's data and keeps the app directory clean
-  // (only chrome_green.ini + config live there).
-  std::wstring data_dir = CanonicalizePath(GetSelfDllDir() + L"\\..\\Data");
-  return data_dir + L"\\chrome_green_update.json";
+  // State now lives in the ChromeGreen data directory
+  // (<cg_data_dir>\ChromeGreenData) so all of ChromeGreen's own data is
+  // consolidated and the app dir stays clean (only chrome_green.ini + config).
+  // Falls back to <DLL>\..\Cache\ChromeGreenData when the key is unset.
+  std::wstring root = config.GetCgDataRoot().value_or(
+      CanonicalizePath(GetSelfDllDir() + L"\\..\\Cache\\ChromeGreenData"));
+  return root + L"\\chrome_green_update.json";
 }
 
 // --- State load / save (minimal JSON) ---
@@ -447,10 +450,12 @@ void LoadUpdateState() {
 void SaveUpdateState() {
   std::lock_guard<std::mutex> lock(g_update_mutex);
 
-  // Ensure Chrome's data directory (<DLL dir>\..\Data) exists before writing.
+  // Ensure the ChromeGreen data directory (<cg_data_dir>\ChromeGreenData)
+  // exists before writing the state file.
   {
-    std::wstring data_dir = CanonicalizePath(GetSelfDllDir() + L"\\..\\Data");
-    CreateDirectoryW(data_dir.c_str(), nullptr);  // no-op if it already exists
+    std::wstring root = config.GetCgDataRoot().value_or(
+        CanonicalizePath(GetSelfDllDir() + L"\\..\\Cache\\ChromeGreenData"));
+    CreateDirectoryW(root.c_str(), nullptr);  // no-op if it already exists
   }
 
   const char* state_str = "idle";

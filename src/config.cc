@@ -34,6 +34,12 @@ void Config::LoadConfig() {
   disk_cache_dir_raw_ = GetIniString(L"general", L"cache_dir", L"%app%\\..\\Cache");
   user_data_dir_ = LoadDirPath(L"data");
   disk_cache_dir_ = LoadDirPath(L"cache");
+  cg_data_dir_raw_ = GetIniString(L"general", L"cg_data_dir", L"%app%\\..\\Cache");
+  cg_data_dir_ = LoadCgDataDir();
+  if (cg_data_dir_)
+    cg_data_root_ = *cg_data_dir_ + L"\\ChromeGreenData";
+  else
+    cg_data_root_.reset();
   translate_key_ = GetIniString(L"general", L"translate_key", L"");
   boss_key_ = GetIniString(L"general", L"boss_key", L"");
   open_new_window_ = GetIniString(L"general", L"open_new_window", L"");
@@ -163,6 +169,10 @@ void Config::LoadConfig() {
   // Sync the global debug-log gate so AddDebugLog() reflects the current ini
   // value (POST /api/config calls ReloadConfig() which re-runs LoadConfig()).
   g_enable_debug_log = debug_log_;
+
+  // Upgrade migration: move legacy data locations into the current
+  // ChromeGreenData subdir (idempotent — no-op once migrated).
+  MigrateLegacyCgData();
 }
 
 UpdateArch Config::DetectArch() {
@@ -201,6 +211,10 @@ data_dir=%app%\..\Data
 
 ; 磁盘缓存目录（留空使用内置默认：%app%\..\Cache）
 cache_dir=%app%\..\Cache
+
+; ChromeGreen 自身数据目录（其下固定子目录 ChromeGreenData 存放 favicons、更新状态等，不含 ini 配置）
+; 默认同缓存目录；支持 %app%\..\Cache 这样的相对写法，也支持 Windows 绝对路径
+cg_data_dir=%app%\..\Cache
 
 ; 追加 Chromium 命令行开关，注意空格，不要换行
 ; 例如：command_line=--disable-features=OutdatedBuildDetector
@@ -420,6 +434,87 @@ std::optional<std::wstring> Config::LoadDirPath(const std::wstring& dir_type) {
   std::wstring expanded_path = ExpandEnvironmentPath(dir_buffer);
   ReplaceStringInPlace(expanded_path, L"%app%", GetAppDir());
   return GetAbsolutePath(expanded_path);
+}
+
+std::optional<std::wstring> Config::LoadCgDataDir() {
+  std::wstring dir_buffer =
+      GetIniString(L"general", L"cg_data_dir", L"%app%\\..\\Cache");
+  if (dir_buffer.empty()) dir_buffer = L"%app%\\..\\Cache";
+  std::wstring expanded = ExpandEnvironmentPath(dir_buffer);
+  ReplaceStringInPlace(expanded, L"%app%", GetAppDir());
+  return GetAbsolutePath(expanded);
+}
+
+bool Config::CopyDirRecursive(const std::wstring& src,
+                              const std::wstring& dst) {
+  CreateDirectoryW(dst.c_str(), nullptr);
+  WIN32_FIND_DATAW fd{};
+  std::wstring pattern = src + L"\\*";
+  HANDLE h = FindFirstFileW(pattern.c_str(), &fd);
+  if (h == INVALID_HANDLE_VALUE) return false;
+  do {
+    if (wcscmp(fd.cFileName, L".") == 0 ||
+        wcscmp(fd.cFileName, L"..") == 0) {
+      continue;
+    }
+    std::wstring s = src + L"\\" + fd.cFileName;
+    std::wstring d = dst + L"\\" + fd.cFileName;
+    if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+      CopyDirRecursive(s, d);
+    } else {
+      CopyFileW(s.c_str(), d.c_str(), FALSE);  // FALSE = overwrite target
+      DeleteFileW(s.c_str());                  // delete source after copy
+    }
+  } while (FindNextFileW(h, &fd));
+  FindClose(h);
+  RemoveDirectoryW(src.c_str());  // src is now empty — remove it
+  return true;
+}
+
+void Config::MigrateCgDataOnDirChange(
+    const std::optional<std::wstring>& old_root,
+    const std::optional<std::wstring>& new_root) {
+  if (!old_root || !new_root || *old_root == *new_root) return;
+  std::wstring src = *old_root + L"\\ChromeGreenData";
+  std::wstring dst = *new_root + L"\\ChromeGreenData";
+  // GetFileAttributesW is INVALID_FILE_ATTRIBUTES when missing — avoids an
+  // extra shlwapi dependency.
+  if (GetFileAttributesW(src.c_str()) == INVALID_FILE_ATTRIBUTES) return;
+  CreateDirectoryW((*new_root).c_str(), nullptr);
+  CopyDirRecursive(src, dst);  // move whole ChromeGreenData (favicons + state)
+}
+
+void Config::MigrateLegacyCgData() {
+  if (!cg_data_root_) return;
+  const std::wstring& root = *cg_data_root_;
+  // 1) Legacy update state: <DLL>\..\Data\chrome_green_update.json
+  std::wstring legacy_update =
+      GetSelfDllDir() + L"\\..\\Data\\chrome_green_update.json";
+  std::wstring new_update = root + L"\\chrome_green_update.json";
+  if (GetFileAttributesW(legacy_update.c_str()) != INVALID_FILE_ATTRIBUTES &&
+      GetFileAttributesW(new_update.c_str()) == INVALID_FILE_ATTRIBUTES) {
+    CreateDirectoryW(root.c_str(), nullptr);
+    CopyFileW(legacy_update.c_str(), new_update.c_str(), FALSE);
+    DeleteFileW(legacy_update.c_str());
+  }
+  // 2) Legacy favicons: <APP>\favicons
+  std::wstring legacy_fav = GetSelfDllDir() + L"\\favicons";
+  std::wstring new_fav = root + L"\\favicons";
+  if (GetFileAttributesW(legacy_fav.c_str()) != INVALID_FILE_ATTRIBUTES &&
+      GetFileAttributesW(new_fav.c_str()) == INVALID_FILE_ATTRIBUTES) {
+    CreateDirectoryW(root.c_str(), nullptr);
+    CopyDirRecursive(legacy_fav, new_fav);
+  }
+  // 3) Legacy boss-key mute flag: <AppDir>\chrome_green_boss_muted
+  // (so a stale mute from a pre-upgrade launch still heals on next start).
+  std::wstring legacy_mute = GetAppDir() + L"\\chrome_green_boss_muted";
+  std::wstring new_mute = root + L"\\chrome_green_boss_muted";
+  if (GetFileAttributesW(legacy_mute.c_str()) != INVALID_FILE_ATTRIBUTES &&
+      GetFileAttributesW(new_mute.c_str()) == INVALID_FILE_ATTRIBUTES) {
+    CreateDirectoryW(root.c_str(), nullptr);
+    CopyFileW(legacy_mute.c_str(), new_mute.c_str(), FALSE);
+    DeleteFileW(legacy_mute.c_str());
+  }
 }
 
 int Config::LoadHoverTabDelay() {

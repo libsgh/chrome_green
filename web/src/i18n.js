@@ -236,6 +236,9 @@ const translations = {
     cache_dir: "Cache Directory",
     cache_dir_desc:
       "Portable cache path. %app% = chrome.exe dir. Leave empty for default.",
+    cg_data_dir: "ChromeGreen Cache Directory",
+    cg_data_dir_desc:
+      "Directory for ChromeGreen's own data (e.g. favicons, update state), excluding the ini config.",
     command_line: "Command-line Switches",
     command_line_desc:
       "Extra Chromium flags appended at launch, space separated",
@@ -514,6 +517,9 @@ const translations = {
     cache_dir: "缓存目录",
     cache_dir_desc:
       "便携版缓存路径。%app% 代表 chrome.exe 所在目录；留空为默认。",
+    cg_data_dir: "ChromeGreen 缓存目录",
+    cg_data_dir_desc:
+      "ChromeGreen 自身数据的存放目录（如 favicons、更新状态），不含 ini 配置。",
     command_line: "启动参数",
     command_line_desc: "追加到 Chrome 启动的 Chromium 命令行开关（空格分隔）",
     launch_on_startup: "启动时运行",

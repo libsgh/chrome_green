@@ -29,6 +29,16 @@ class Config {
   const std::wstring& GetDiskCacheDirRaw() const {
     return disk_cache_dir_raw_;
   }
+  // ChromeGreen data directory (config [general] cg_data_dir). Raw = literal
+  // string from ini; resolved = absolute path from LoadCgDataDir(); root =
+  // resolved + "\ChromeGreenData" (the fixed subdir that holds all of our data).
+  const std::wstring& GetCgDataDirRaw() const { return cg_data_dir_raw_; }
+  const std::optional<std::wstring>& GetCgDataDir() const {
+    return cg_data_dir_;
+  }
+  const std::optional<std::wstring>& GetCgDataRoot() const {
+    return cg_data_root_;
+  }
   const std::wstring& GetTranslateKey() const { return translate_key_; }
   const std::wstring& GetBossKey() const { return boss_key_; }
   // Action hotkeys (open new window / batch-open URL group)
@@ -126,6 +136,17 @@ class Config {
   // file is present (and editable) on first launch. Called from LoadConfig().
   void EnsureIniExists();
 
+  // --- ChromeGreen data directory migration ---
+  // After the user changes cg_data_dir at runtime, move the old
+  // <cg_data_dir>\ChromeGreenData (favicons + update state) to the new
+  // location. Idempotent: no-op if old root is empty/equal/missing.
+  void MigrateCgDataOnDirChange(const std::optional<std::wstring>& old_root,
+                                const std::optional<std::wstring>& new_root);
+  // Upgrade migration: move the legacy <APP>\favicons and
+  // <DLL>\..\Data\chrome_green_update.json into the current ChromeGreenData.
+  // Idempotent: skipped when the legacy paths no longer exist.
+  void MigrateLegacyCgData();
+
  private:
   Config();
   ~Config() = default;
@@ -139,6 +160,11 @@ class Config {
   int LoadBookmarkNewTabMode();
 
   std::optional<std::wstring> LoadDirPath(const std::wstring& dir_type);
+  std::optional<std::wstring> LoadCgDataDir();
+  // Recursively copy src -> dst then delete src (cross-volume safe, since
+  // MoveFileExW with MOVEFILE_COPY_ALLOWED does not delete the source).
+  static bool CopyDirRecursive(const std::wstring& src,
+                               const std::wstring& dst);
 
  private:
   // general
@@ -149,6 +175,9 @@ class Config {
   std::optional<std::wstring> disk_cache_dir_;
   std::wstring user_data_dir_raw_;
   std::wstring disk_cache_dir_raw_;
+  std::optional<std::wstring> cg_data_dir_;
+  std::wstring cg_data_dir_raw_;
+  std::optional<std::wstring> cg_data_root_;
   std::wstring translate_key_;
   std::wstring boss_key_;
   // Action hotkeys (open new window / batch-open URL group)

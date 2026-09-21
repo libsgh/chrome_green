@@ -1295,7 +1295,13 @@ static std::wstring WriteFaviconIco(const std::vector<uint8_t>& png_data,
                ((uint32_t)png_data[22] << 8)  |  (uint32_t)png_data[23];
   if (w == 0 || h == 0 || w > 256 || h > 256) return L"";
 
-  std::wstring dir = GetSelfDllDir() + L"\\favicons";
+  // ChromeGreen data directory (config cg_data_dir, defaults to cache dir);
+  // its fixed ChromeGreenData\favicons subfolder holds the icons. Falls back
+  // to <DLL>\..\Cache\ChromeGreenData if the config key is unset.
+  std::wstring base = Config::Instance().GetCgDataRoot().value_or(
+      GetSelfDllDir() + L"\\..\\Cache\\ChromeGreenData");
+  CreateDirectoryW(base.c_str(), nullptr);
+  std::wstring dir = base + L"\\favicons";
   CreateDirectoryW(dir.c_str(), nullptr);  // ignore err (may exist)
   wchar_t name[64];
   // Use fixed names so we reuse files across refresh cycles (no accumulation).

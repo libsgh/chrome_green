@@ -62,6 +62,7 @@ const settings = reactive({
   // general (portable / launch / hotkeys)
   data_dir: "%app%\\..\\Data",
   cache_dir: "%app%\\..\\Cache",
+  cg_data_dir: "%app%\\..\\Cache",
   command_line: "",
   launch_on_startup: "",
   launch_on_exit: "",

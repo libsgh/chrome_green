@@ -166,7 +166,7 @@ ToolsResult CreateDesktopShortcut() {
 
   psl->SetPath(chrome_exe.c_str());
   psl->SetWorkingDirectory(app_dir.c_str());
-  psl->SetDescription(L"ChromeGreen portable");
+  psl->SetDescription(L"");
   psl->SetIconLocation(chrome_exe.c_str(), 0);
   psl->SetArguments(L"--portable");
 

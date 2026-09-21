@@ -275,7 +275,13 @@ int MuteProcess(const std::vector<DWORD>& pids,
 constexpr wchar_t kMutedFlagFileName[] = L"chrome_green_boss_muted";
 
 std::wstring GetMutedFlagPath() {
-  return GetAppDir() + L"\\" + kMutedFlagFileName;
+  // Store the mute flag inside the ChromeGreen data directory
+  // (<cg_data_dir>\ChromeGreenData) so the app dir stays clean (only
+  // chrome_green.ini + config). Falls back to <DLL>\..\Cache\ChromeGreenData
+  // when the key is unset.
+  std::wstring root = Config::Instance().GetCgDataRoot().value_or(
+      GetSelfDllDir() + L"\\..\\Cache\\ChromeGreenData");
+  return root + L"\\" + kMutedFlagFileName;
 }
 
 bool HasMutedFlag() {
@@ -286,6 +292,11 @@ bool HasMutedFlag() {
 void SetMutedFlag(bool muted) {
   const std::wstring path = GetMutedFlagPath();
   if (muted) {
+    // Ensure the ChromeGreen data directory exists (it may not yet, since the
+    // flag can be the first thing written there). CreateDirectoryW only makes
+    // the final component, so the configured cg_data_dir must already exist.
+    std::wstring dir = path.substr(0, path.size() - wcslen(kMutedFlagFileName));
+    CreateDirectoryW(dir.c_str(), nullptr);  // no-op if it already exists
     HANDLE file = ::CreateFileW(path.c_str(), GENERIC_WRITE, 0, nullptr,
                                 CREATE_ALWAYS, FILE_ATTRIBUTE_HIDDEN, nullptr);
     if (file != INVALID_HANDLE_VALUE) {
