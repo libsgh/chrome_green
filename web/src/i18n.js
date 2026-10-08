@@ -219,6 +219,9 @@ const translations = {
     bookmark_bar_auto_hide_delay: "Bookmark Bar Hide Delay (ms)",
     bookmark_bar_auto_hide_delay_desc:
       "Delay before hiding after the mouse leaves (100-5000); used only when Auto-Hide Bookmark Bar is on",
+    drag_link_new_tab: "Drop Links in New Tab",
+    drag_link_new_tab_desc:
+      "Dropping a link on the page opens it in a background tab and leaves the current page alone",
     open_url_new_tab: "Open URL in New Tab",
     open_url_new_tab_desc:
       "Address-bar Enter opens the URL in a new tab: Off / Alt+Enter / Shift+Alt+Enter",
@@ -508,6 +511,9 @@ const translations = {
     bookmark_bar_auto_hide_delay: "书签栏收起延迟（毫秒）",
     bookmark_bar_auto_hide_delay_desc:
       "鼠标移开后收起的延迟毫秒数（100-5000），仅“自动隐藏书签栏”开启时生效",
+    drag_link_new_tab: "拖拽链接开新标签",
+    drag_link_new_tab_desc:
+      "在页面内拖拽链接松开时，在后台新标签打开，当前页面保持不动",
     open_url_new_tab: "地址栏回车新标签打开",
     open_url_new_tab_desc:
       "地址栏回车在新标签打开网址：关闭 / Alt+Enter / Shift+Alt+Enter",

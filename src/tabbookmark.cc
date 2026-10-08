@@ -6,6 +6,7 @@
 #include <optional>
 
 #include "config.h"
+#include "dragdrop.h"
 #include "inputhook.h"
 #include "uia.h"
 #include "utils.h"
@@ -457,6 +458,9 @@ bool TabBookmarkMouseHandler(WPARAM wParam, LPARAM lParam) {
     case WM_MOUSEMOVE:
       HandleHoverTab(pmouse);
       HandleBookmarkBarAutoHide(pmouse);
+      // A link drop cannot open its tab inline (OLE modal loop), so the next
+      // mouse move after the drag is what actually starts it.
+      FlushPendingDragDrop();
       return false;
     case WM_LBUTTONDOWN:
     case WM_NCLBUTTONDOWN:
@@ -682,6 +686,12 @@ void SyncBookmarkBarWithConfig() {
     return;
   }
   bookmark_bar_auto_hide_was_on.store(true);
+}
+
+// The mouse hook records every left-button press, which is where a drag (and
+// therefore a dragged link) starts. dragdrop.cc replays a Ctrl+click there.
+POINT GetDragStartPoint() {
+  return lbutton_down_point;
 }
 
 void TabBookmark() {

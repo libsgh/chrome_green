@@ -1309,6 +1309,20 @@ bool IsOnTabBar(POINT pt) {
   return PtInRect(&region_rect, pt) != FALSE;
 }
 
+std::optional<RECT> GetTabStripRect(HWND hwnd) {
+  UiaSession* session = GetUiaSession();
+  if (!session || !hwnd) {
+    return std::nullopt;
+  }
+
+  RECT region_rect{};
+  if (!GetValidatedTabUi(session, hwnd, &region_rect) ||
+      IsRectEmpty(&region_rect)) {
+    return std::nullopt;
+  }
+  return region_rect;
+}
+
 bool IsOnBookmark(POINT pt) {
   const UiaSession* session = GetUiaSession();
   if (!session) {

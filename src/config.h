@@ -91,6 +91,11 @@ class Config {
   int GetOpenUrlNewTabMode() const { return open_url_new_tab_; }
   int GetBookmarkNewTabMode() const { return bookmark_new_tab_; }
   bool IsNewTabDisable() const { return new_tab_disable_; }
+  // Experimental. Hooks ole32!RegisterDragDrop so a link dropped on the page
+  // content opens in a background tab instead of navigating the current one.
+  // OFF by default: it wraps Chrome's IDropTarget, so a mistake here breaks
+  // dropping everywhere, not just links.
+  bool IsDragLinkNewTab() const { return drag_link_new_tab_; }
   const std::wstring& GetDisableTabName() const { return disable_tab_name_; }
   const std::vector<std::wstring>& GetDisableTabNames() const {
     return disable_tab_names_;
@@ -216,6 +221,7 @@ class Config {
   int open_url_new_tab_ = 0;
   int bookmark_new_tab_ = 0;
   bool new_tab_disable_ = false;
+  bool drag_link_new_tab_ = false;
   std::wstring disable_tab_name_;
   std::vector<std::wstring> disable_tab_names_;
 

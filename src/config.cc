@@ -99,6 +99,9 @@ void Config::LoadConfig() {
       ::GetPrivateProfileIntW(L"tabs", L"bookmark_bar_auto_hide", 0,
                               GetIniPath().c_str()) != 0;
   bookmark_bar_auto_hide_delay_ = LoadBookmarkBarAutoHideDelay();
+  drag_link_new_tab_ =
+      ::GetPrivateProfileIntW(L"tabs", L"drag_link_new_tab", 0,
+                              GetIniPath().c_str()) != 0;
   open_url_new_tab_ = LoadOpenUrlNewTabMode();
   bookmark_new_tab_ = LoadBookmarkNewTabMode();
   new_tab_disable_ = ::GetPrivateProfileIntW(L"tabs", L"new_tab_disable", 1,
@@ -342,6 +345,8 @@ hover_tab_delay=400
 bookmark_bar_auto_hide=0
 ; 鼠标移开后收起的延迟毫秒数（100-5000）
 bookmark_bar_auto_hide_delay=300
+; 在页面内容区拖拽链接松开时，在后台新标签打开（原标签页不动）。0 关闭，1 开启
+drag_link_new_tab=0
 ; 地址栏回车在新标签打开网址：0 关闭，1 = Alt+Enter，2 = Shift+Alt+Enter
 open_url_new_tab=0
 ; 书签在新标签打开：0 关闭，1 = 中键+Shift 点击，2 = 中键点击

@@ -90,6 +90,7 @@ const settings = reactive({
   hover_tab_delay: 400,
   bookmark_bar_auto_hide: false,
   bookmark_bar_auto_hide_delay: 300,
+  drag_link_new_tab: false,
   open_url_new_tab: 0,
   open_bookmark_new_tab: 0,
   new_tab_disable: true,
@@ -472,32 +473,26 @@ function serializeKeyMappings() {
     .map((m) => m.src + "=" + m.dst)
     .join("\n");
 }
-// @blur/@change bindings pass the DOM event as the first argument, so the
-// recheck flag is coerced: without this an event object reads as truthy and
-// every blur would reset the update state and re-check.
-async function saveSettings(forceRecheck = false) {
-  const recheck = forceRecheck === true;
+async function saveSettings(forceRecheck = false, showToastFlag = false) {
   try {
     settings.key_mappings = serializeKeyMappings();
     await api.updateConfig(settings);
     await refreshConfig();
     await refreshStatus();
     // When channel or download_source changes, reset state and re-check
-    if (recheck) {
+    if (forceRecheck) {
       await api.resetUpdate();
       await refreshStatus();
       await checkUpdate();
     }
-    showToast(t("save_success"), "success");
+    if (showToastFlag) showToast(t("save_success"), "success");
   } catch (e) {
-    showToast(t("save_failed"), "error");
+    if (showToastFlag) showToast(t("save_failed"), "error");
   }
 }
 function toggle(key) {
   const next = !settings[key];
   settings[key] = next;
-  // Every toggle saves immediately and saveSettings always confirms, so a
-  // switch never changes silently.
   saveSettings();
   // When the user enables auto-check, run a check immediately so they get
   // instant feedback instead of having to reopen the page.

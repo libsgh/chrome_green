@@ -9,6 +9,7 @@
 #include "actionhotkey.h"
 #include "appid.h"
 #include "config.h"
+#include "dragdrop.h"
 #include "green.h"
 #include "hijack.h"
 #include "hosts_manager.h"
@@ -51,6 +52,9 @@ void ChromeGreen() {
   // Enhancement of the tab bar / bookmarks (ported from chrome_plus).
   // Must run before InstallInputHooks() so its handlers are registered first.
   TabBookmark();
+
+  // OLE drop-target hook: dropped links open in a background tab.
+  DragLinkNewTab();
 
   // Action hotkeys: configured shortcuts that open a new window or batch-open
   // a list of URLs as tabs. Must run before InstallInputHooks().

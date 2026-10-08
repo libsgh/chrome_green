@@ -26,6 +26,9 @@ bool SelectTab(const TabHitResult& hit_result);
 [[nodiscard]] bool IsOnNewTab(HWND hwnd,
                               const std::vector<std::wstring>& extra_tab_names);
 
+// Screen rectangle of the tab strip, for hit tests outside a mouse-move loop
+// (resolving it per point during an OLE drag is far too costly).
+[[nodiscard]] std::optional<RECT> GetTabStripRect(HWND hwnd);
 // Bookmark-bar zone of one browser window in screen coordinates: the omnibox
 // row, plus the bookmark bar row while the bar is visible.
 struct BookmarkBarUi {

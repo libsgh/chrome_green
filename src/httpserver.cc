@@ -226,6 +226,7 @@ std::string GetConfigJson() {
      << (config.IsBookmarkBarAutoHide() ? "true" : "false") << ",";
   ss << "\"bookmark_bar_auto_hide_delay\":"
      << config.GetBookmarkBarAutoHideDelay() << ",";
+  ss << "\"drag_link_new_tab\":" << (config.IsDragLinkNewTab() ? "true" : "false") << ",";
   ss << "\"open_url_new_tab\":" << config.GetOpenUrlNewTabMode() << ",";
   ss << "\"open_bookmark_new_tab\":" << config.GetBookmarkNewTabMode() << ",";
   ss << "\"new_tab_disable\":" << (config.IsNewTabDisable() ? "true" : "false") << ",";
@@ -483,6 +484,7 @@ std::string HandleRequest(const HttpRequest& req) {
         JsonGetBool(req.body, "bookmark_bar_auto_hide");
     int bookmark_bar_auto_hide_delay =
         JsonGetInt(req.body, "bookmark_bar_auto_hide_delay");
+    bool drag_link_new_tab = JsonGetBool(req.body, "drag_link_new_tab");
     int open_url_new_tab = JsonGetInt(req.body, "open_url_new_tab");
     int open_bookmark_new_tab = JsonGetInt(req.body, "open_bookmark_new_tab");
     bool new_tab_disable = JsonGetBool(req.body, "new_tab_disable");
@@ -594,6 +596,8 @@ std::string HandleRequest(const HttpRequest& req) {
     WritePrivateProfileStringW(L"tabs", L"bookmark_bar_auto_hide_delay",
         std::to_wstring(bookmark_bar_auto_hide_delay).c_str(),
         GetIniPath().c_str());
+    WritePrivateProfileStringW(L"tabs", L"drag_link_new_tab",
+        drag_link_new_tab ? L"1" : L"0", GetIniPath().c_str());
     WritePrivateProfileStringW(L"tabs", L"open_url_new_tab",
         std::to_wstring(open_url_new_tab).c_str(), GetIniPath().c_str());
     WritePrivateProfileStringW(L"tabs", L"open_bookmark_new_tab",

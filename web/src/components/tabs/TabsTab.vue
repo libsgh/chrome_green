@@ -184,6 +184,21 @@
         </div>
       </div>
 
+      <!-- Drop links in new tab -->
+      <div class="setting-row">
+        <div class="setting-label-group">
+          <label class="setting-label">{{ t("drag_link_new_tab") }}</label>
+          <p class="setting-desc">{{ t("drag_link_new_tab_desc") }}</p>
+        </div>
+        <div
+          :class="['switch-track', settings.drag_link_new_tab ? 'on' : 'off']"
+          @click="toggle('drag_link_new_tab')"
+          role="switch"
+          :aria-checked="settings.drag_link_new_tab">
+          <span class="switch-thumb"></span>
+        </div>
+      </div>
+
       <!-- Disable on named tabs -->
       <div class="setting-row">
         <div class="setting-label-group">
