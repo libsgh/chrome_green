@@ -2,6 +2,7 @@
   <div :class="['min-h-screen bg-[hsl(var(--background))]', themeClass]">
     <!-- Header -->
     <header
+      ref="headerEl"
       class="border-b border-[hsl(var(--border))] bg-[hsl(var(--card))] sticky top-0 z-20">
       <div class="max-w-4xl mx-auto px-6">
         <!-- Title row -->
@@ -147,18 +148,22 @@
     <!-- Main Content -->
     <main class="max-w-4xl mx-auto px-6 py-8 space-y-6">
       <!-- Navigation tabs -->
-      <nav class="flex gap-1 pb-1 -mx-1 overflow-x-auto">
-        <button
-          v-for="tab in tabs"
-          :key="tab.id"
-          :class="['nav-tab', activeTab === tab.id ? 'active' : '']"
-          @click="activeTab = tab.id">
-          <span class="tab-icon" aria-hidden="true">
-            <Icon :name="tab.icon" :size="15" />
-          </span>
-          <span class="nav-label leading-none">{{ t(tab.label) }}</span>
-        </button>
-      </nav>
+      <div
+        :style="{ top: headerHeight + 'px' }"
+        class="sticky z-10 bg-[hsl(var(--background))]">
+        <nav class="flex gap-1 pb-1 -mx-1 overflow-x-auto">
+          <button
+            v-for="tab in tabs"
+            :key="tab.id"
+            :class="['nav-tab', activeTab === tab.id ? 'active' : '']"
+            @click="activeTab = tab.id">
+            <span class="tab-icon" aria-hidden="true">
+              <Icon :name="tab.icon" :size="15" />
+            </span>
+            <span class="nav-label leading-none">{{ t(tab.label) }}</span>
+          </button>
+        </nav>
+      </div>
 
       <!-- Active tab component -->
       <component :is="tabMap[activeTab]" />
@@ -175,7 +180,7 @@
 </template>
 
 <script setup>
-import { onBeforeUnmount, onMounted, watch } from "vue";
+import { onBeforeUnmount, onMounted, ref, watch } from "vue";
 import Icon from "./components/Icon.vue";
 import LogsTab from "./components/tabs/LogsTab.vue";
 import OtherTab from "./components/tabs/OtherTab.vue";
@@ -220,10 +225,33 @@ const tabMap = {
 // Logs / tools tabs poll only while visible.
 watch([activeTab, () => status.state], updatePolling, { immediate: true });
 
+// The header is sticky, so the tab bar has to park right below it. Measure it
+// instead of hardcoding a height: the title wraps differently per language and
+// the header also reflows when the window narrows.
+const headerEl = ref(null);
+const headerHeight = ref(0);
+
+const syncHeaderHeight = () => {
+  const height = headerEl.value?.offsetHeight ?? 0;
+  if (height > 0) {
+    headerHeight.value = height;
+  }
+};
+
+let headerObserver = null;
+
 onMounted(() => {
   initApp();
+  syncHeaderHeight();
+  window.addEventListener("resize", syncHeaderHeight);
+  if (typeof ResizeObserver !== "undefined" && headerEl.value) {
+    headerObserver = new ResizeObserver(syncHeaderHeight);
+    headerObserver.observe(headerEl.value);
+  }
 });
 onBeforeUnmount(() => {
   disposeApp();
+  window.removeEventListener("resize", syncHeaderHeight);
+  headerObserver?.disconnect();
 });
 </script>
