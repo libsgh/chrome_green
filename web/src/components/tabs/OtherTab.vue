@@ -412,7 +412,7 @@
 <!-- Save button pinned to the card's bottom-right -->
     <button
       class="btn btn-primary absolute bottom-4 right-4 z-10 shadow-lg gap-1.5"
-      @click="saveSettings(false, true)">
+      @click="saveSettings()">
       <Icon name="save" :size="15" />
       {{ t("save_changes") }}
     </button>
