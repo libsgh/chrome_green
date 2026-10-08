@@ -81,6 +81,17 @@ struct TabUiCache {
   TabContainer container;
 };
 
+// Bookmark-bar UI resolved for one top-level window, mirroring TabUiCache.
+// Element references are live, so rectangle reads track layout; only whether
+// the bar is on screen is decided at resolve time, and
+// InvalidateBookmarkBarUi() drops the cache whenever the bar is toggled.
+struct BookmarkBarUiCache {
+  HWND window = nullptr;
+  ULONGLONG retry_after_ticks = 0;
+  ComPtr<IUIAutomationElement> toolbar;
+  ComPtr<IUIAutomationElement> bar;
+};
+
 // TODO: Evaluate `IUIAutomationCacheRequest` and `BuildCache` for tab
 // enumeration if tab scans become a measurable hot path.
 struct UiaSession {
@@ -92,6 +103,7 @@ struct UiaSession {
   ComPtr<IUIAutomationTreeWalker> raw_view_walker;
   CachedClassConditions class_conditions;
   TabUiCache tab_ui_cache;
+  BookmarkBarUiCache bookmark_bar_cache;
 };
 
 UiaSession& GetThreadLocalUiaSession() {
@@ -1095,6 +1107,67 @@ FindBookmarkCoveringPoint(const UiaSession& session, HWND window, POINT pt) {
                               session.class_conditions.menu_item_view, pt);
 }
 
+BookmarkBarUiCache* ResolveBookmarkBarUi(UiaSession* session, HWND hwnd) {
+  auto& cache = session->bookmark_bar_cache;
+  if (cache.window == hwnd && cache.toolbar) {
+    return &cache;
+  }
+  // Popups and app windows have no ToolbarView; throttle re-resolves so a
+  // stream of mouse moves over such a window does not walk the tree each
+  // time.
+  if (cache.window == hwnd && GetTickCount64() < cache.retry_after_ticks) {
+    return nullptr;
+  }
+
+  cache = BookmarkBarUiCache();
+  cache.window = hwnd;
+  cache.retry_after_ticks = GetTickCount64() + 1000;
+
+  const auto window_element = GetElementFromWindow(*session, hwnd);
+  if (!window_element) {
+    return nullptr;
+  }
+
+  // Same chrome-only BFS as the tab strip resolve: shallow, bounded, and it
+  // never descends into HWND-hosting elements, so web content stays out.
+  cache.toolbar = FindShallowDescendantByClasses(
+      session->control_view_walker.Get(), window_element, {L"ToolbarView"},
+      /*max_visited=*/256);
+  if (!cache.toolbar) {
+    return nullptr;
+  }
+  // Absent while the bar is hidden; the empty-rect check covers a provider
+  // that keeps the node around with a zeroed rectangle.
+  cache.bar = FindShallowDescendantByClasses(
+      session->control_view_walker.Get(), window_element,
+      {L"BookmarkBarView"}, /*max_visited=*/256);
+  return &cache;
+}
+
+std::optional<BookmarkBarUi> GetBookmarkBarUiImpl(UiaSession* session,
+                                                  HWND hwnd) {
+  const auto* ui = ResolveBookmarkBarUi(session, hwnd);
+  if (!ui) {
+    return std::nullopt;
+  }
+
+  BookmarkBarUi zone;
+  if (FAILED(ui->toolbar->get_CurrentBoundingRectangle(&zone.toolbar_rect)) ||
+      IsRectEmpty(&zone.toolbar_rect)) {
+    // No toolbar on screen (fullscreen, undocked DevTools...): nothing to
+    // hover over.
+    return std::nullopt;
+  }
+  if (ui->bar) {
+    RECT bar_rect;
+    if (SUCCEEDED(ui->bar->get_CurrentBoundingRectangle(&bar_rect)) &&
+        !IsRectEmpty(&bar_rect)) {
+      zone.bar_rect = bar_rect;
+    }
+  }
+  return zone;
+}
+
 }  // namespace
 
 // Resolve tabs through the root window's UIA tree instead of via
@@ -1324,4 +1397,46 @@ bool IsOnNewTab(HWND hwnd, const std::vector<std::wstring>& extra_tab_names) {
   }
 
   return false;
+}
+
+std::optional<BookmarkBarUi> GetBookmarkBarUi(HWND hwnd) {
+  UiaSession* session = GetUiaSession();
+  if (!session) {
+    return std::nullopt;
+  }
+  return GetBookmarkBarUiImpl(session, hwnd);
+}
+
+bool IsBookmarkBarVisible(HWND hwnd) {
+  UiaSession* session = GetUiaSession();
+  if (!session) {
+    return false;
+  }
+  const auto zone = GetBookmarkBarUiImpl(session, hwnd);
+  return zone && zone->bar_rect.has_value();
+}
+
+bool IsOnBookmarkBarZone(POINT pt) {
+  const HWND hwnd = WindowFromPoint(pt);
+  const HWND root = hwnd ? GetAncestor(hwnd, GA_ROOT) : nullptr;
+  if (!root || !IsChromeWindow(root)) {
+    return false;
+  }
+
+  UiaSession* session = GetUiaSession();
+  if (!session) {
+    return false;
+  }
+  const auto zone = GetBookmarkBarUiImpl(session, root);
+  if (!zone) {
+    return false;
+  }
+  if (PtInRect(&zone->toolbar_rect, pt)) {
+    return true;
+  }
+  return zone->bar_rect && PtInRect(&*zone->bar_rect, pt);
+}
+
+void InvalidateBookmarkBarUi() {
+  GetThreadLocalUiaSession().bookmark_bar_cache = BookmarkBarUiCache();
 }

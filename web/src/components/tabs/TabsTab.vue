@@ -99,7 +99,7 @@
       </div>
 
       <!-- Hover delay -->
-      <div class="setting-row">
+      <div v-if="settings.hover_tab" class="setting-row">
         <div class="setting-label-group">
           <label class="setting-label">{{ t("hover_tab_delay") }}</label>
           <p class="setting-desc">{{ t("hover_tab_delay_desc") }}</p>
@@ -110,6 +110,47 @@
             min="0"
             max="5000"
             v-model.number="settings.hover_tab_delay"
+            @blur="saveSettings"
+            class="input" />
+        </div>
+      </div>
+
+      <!-- Auto-hide bookmark bar -->
+      <div class="setting-row">
+        <div class="setting-label-group">
+          <label class="setting-label">{{ t("bookmark_bar_auto_hide") }}</label>
+          <p class="setting-desc">{{ t("bookmark_bar_auto_hide_desc") }}</p>
+        </div>
+        <div
+          :class="[
+            'switch-track',
+            settings.bookmark_bar_auto_hide ? 'on' : 'off',
+          ]"
+          @click="toggle('bookmark_bar_auto_hide')"
+          role="switch"
+          :aria-checked="settings.bookmark_bar_auto_hide">
+          <span class="switch-thumb"></span>
+        </div>
+      </div>
+
+      <!-- Bookmark bar hide delay -->
+      <div
+        v-if="settings.bookmark_bar_auto_hide"
+        class="setting-row">
+        <div class="setting-label-group">
+          <label class="setting-label">{{
+            t("bookmark_bar_auto_hide_delay")
+          }}</label>
+          <p class="setting-desc">
+            {{ t("bookmark_bar_auto_hide_delay_desc") }}
+          </p>
+        </div>
+        <div class="w-32">
+          <input
+            type="number"
+            min="100"
+            max="5000"
+            v-model.number="settings.bookmark_bar_auto_hide_delay"
             @blur="saveSettings"
             class="input" />
         </div>
@@ -159,7 +200,7 @@
       </div>
 
       <!-- Excluded tab names -->
-      <div class="setting-row">
+      <div v-if="settings.new_tab_disable" class="setting-row">
         <div class="setting-label-group">
           <label class="setting-label">{{ t("new_tab_disable_name") }}</label>
           <p class="setting-desc">{{ t("new_tab_disable_name_desc") }}</p>

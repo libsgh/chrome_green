@@ -1234,11 +1234,9 @@ static std::wstring FindNewestHistory(const std::wstring& user_data_dir) {
   return best;
 }
 
-// Resolve the path to Chrome's History SQLite DB. We are loaded into the
-// chrome.exe process, so GetCommandLineW gives the real launch args (with the
-// portable --user-data-dir injection applied). Switches are parsed with
-// GetCmdArgValue so values containing spaces survive.
-static std::wstring GetHistoryPath() {
+// Resolve Chrome's profile directory. Switches go through GetCmdArgValue so
+// values containing spaces survive the quoting portable.cc applies.
+static std::wstring GetProfileDir() {
   std::wstring ud = GetCmdArgValue(L"--user-data-dir=");
   std::wstring base;
   if (!ud.empty()) {
@@ -1253,11 +1251,18 @@ static std::wstring GetHistoryPath() {
   }
   if (base.empty()) return L"";
   std::wstring prof = GetCmdArgValue(L"--profile-directory=");
-  std::wstring hp =
-      base + L"\\" + (prof.empty() ? L"Default" : prof) + L"\\History";
+  return base + L"\\" + (prof.empty() ? L"Default" : prof);
+}
+
+// Resolve the path to Chrome's History SQLite DB.
+static std::wstring GetHistoryPath() {
+  std::wstring dir = GetProfileDir();
+  if (dir.empty()) return L"";
+  std::wstring hp = dir + L"\\History";
   if (FileExists(hp.c_str())) return hp;
   // Wrong profile name (or a renamed/moved profile): fall back to whichever
   // profile was used last instead of giving up on the Recent category.
+  std::wstring base = dir.substr(0, dir.find_last_of(L'\\'));
   std::wstring found = FindNewestHistory(base);
   return found.empty() ? hp : found;
 }

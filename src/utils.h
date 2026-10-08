@@ -38,6 +38,8 @@ consteval uint32_t GetMagicCode() {
 #define IDC_CLOSE_FIND_OR_STOP 37003
 #define IDC_UPGRADE_DIALOG 40024
 #define IDC_NEW_WINDOW 34000
+#define IDC_BOOKMARK_BAR_SUBMENU_ALWAYS_HIDE 51025
+#define IDC_BOOKMARK_BAR_SUBMENU_ALWAYS_SHOW 51026
 
 // Global constants - use functions to avoid static initialization order issues
 const std::wstring& GetAppDir();

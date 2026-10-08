@@ -95,6 +95,10 @@ void Config::LoadConfig() {
   hover_tab_ = ::GetPrivateProfileIntW(L"tabs", L"hover_tab", 0,
                                        GetIniPath().c_str()) != 0;
   hover_tab_delay_ = LoadHoverTabDelay();
+  bookmark_bar_auto_hide_ =
+      ::GetPrivateProfileIntW(L"tabs", L"bookmark_bar_auto_hide", 0,
+                              GetIniPath().c_str()) != 0;
+  bookmark_bar_auto_hide_delay_ = LoadBookmarkBarAutoHideDelay();
   open_url_new_tab_ = LoadOpenUrlNewTabMode();
   bookmark_new_tab_ = LoadBookmarkNewTabMode();
   new_tab_disable_ = ::GetPrivateProfileIntW(L"tabs", L"new_tab_disable", 1,
@@ -334,11 +338,15 @@ wheel_tab_when_press_rbutton=1
 hover_tab=0
 ; 悬停激活延迟（毫秒，0-5000），仅 hover_tab=1 时生效
 hover_tab_delay=400
+; 自动隐藏书签栏：鼠标位于搜索框或书签栏上时显示，移开后收起。0 关闭，1 开启
+bookmark_bar_auto_hide=0
+; 鼠标移开后收起的延迟毫秒数（100-5000）
+bookmark_bar_auto_hide_delay=300
 ; 地址栏回车在新标签打开网址：0 关闭，1 = Alt+Enter，2 = Shift+Alt+Enter
 open_url_new_tab=0
 ; 书签在新标签打开：0 关闭，1 = 中键+Shift 点击，2 = 中键点击
 open_bookmark_new_tab=0
-; 对标题包含下列任一名称（逗号分隔）的标签禁用以下新标签增强。0 关闭，1 开启
+; 对标题包含下列任一名称（逗号分隔）的标签禁用新标签增强（地址栏、书签、拖拽链接）。0 关闭，1 开启
 new_tab_disable=1
 new_tab_disable_name=
 
@@ -523,6 +531,18 @@ int Config::LoadHoverTabDelay() {
   const int delay = ::GetPrivateProfileIntW(
       L"tabs", L"hover_tab_delay", kDefaultDelayMs, GetIniPath().c_str());
   if (delay < 0 || delay > kMaxDelayMs) {
+    return kDefaultDelayMs;
+  }
+  return delay;
+}
+
+int Config::LoadBookmarkBarAutoHideDelay() {
+  constexpr int kDefaultDelayMs = 300;
+  constexpr int kMaxDelayMs = 5000;
+  const int delay = ::GetPrivateProfileIntW(
+      L"tabs", L"bookmark_bar_auto_hide_delay", kDefaultDelayMs,
+      GetIniPath().c_str());
+  if (delay < 100 || delay > kMaxDelayMs) {
     return kDefaultDelayMs;
   }
   return delay;

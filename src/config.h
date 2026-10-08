@@ -84,6 +84,10 @@ class Config {
   }
   bool IsHoverTab() const { return hover_tab_; }
   int GetHoverTabDelay() const { return hover_tab_delay_; }
+  bool IsBookmarkBarAutoHide() const { return bookmark_bar_auto_hide_; }
+  int GetBookmarkBarAutoHideDelay() const {
+    return bookmark_bar_auto_hide_delay_;
+  }
   int GetOpenUrlNewTabMode() const { return open_url_new_tab_; }
   int GetBookmarkNewTabMode() const { return bookmark_new_tab_; }
   bool IsNewTabDisable() const { return new_tab_disable_; }
@@ -156,6 +160,7 @@ class Config {
   void LoadConfig();
   void LoadKeyMappings();
   int LoadHoverTabDelay();
+  int LoadBookmarkBarAutoHideDelay();
   int LoadOpenUrlNewTabMode();
   int LoadBookmarkNewTabMode();
 
@@ -206,6 +211,8 @@ class Config {
   bool wheel_tab_when_press_rbutton_ = false;
   bool hover_tab_ = false;
   int hover_tab_delay_ = 0;
+  bool bookmark_bar_auto_hide_ = false;
+  int bookmark_bar_auto_hide_delay_ = 300;
   int open_url_new_tab_ = 0;
   int bookmark_new_tab_ = 0;
   bool new_tab_disable_ = false;

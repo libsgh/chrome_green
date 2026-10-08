@@ -23,6 +23,7 @@
 #include "tools.h"
 #include "com_initializer.h"
 #include "diaglog.h"
+#include "tabbookmark.h"
 #include "update.h"
 #include "updater.h"
 #include "utils.h"
@@ -221,6 +222,10 @@ std::string GetConfigJson() {
   ss << "\"wheel_tab_when_press_rbutton\":" << (config.IsWheelTabWhenPressRightButton() ? "true" : "false") << ",";
   ss << "\"hover_tab\":" << (config.IsHoverTab() ? "true" : "false") << ",";
   ss << "\"hover_tab_delay\":" << config.GetHoverTabDelay() << ",";
+  ss << "\"bookmark_bar_auto_hide\":"
+     << (config.IsBookmarkBarAutoHide() ? "true" : "false") << ",";
+  ss << "\"bookmark_bar_auto_hide_delay\":"
+     << config.GetBookmarkBarAutoHideDelay() << ",";
   ss << "\"open_url_new_tab\":" << config.GetOpenUrlNewTabMode() << ",";
   ss << "\"open_bookmark_new_tab\":" << config.GetBookmarkNewTabMode() << ",";
   ss << "\"new_tab_disable\":" << (config.IsNewTabDisable() ? "true" : "false") << ",";
@@ -474,6 +479,10 @@ std::string HandleRequest(const HttpRequest& req) {
         JsonGetBool(req.body, "wheel_tab_when_press_rbutton");
     bool hover_tab = JsonGetBool(req.body, "hover_tab");
     int hover_tab_delay = JsonGetInt(req.body, "hover_tab_delay");
+    bool bookmark_bar_auto_hide =
+        JsonGetBool(req.body, "bookmark_bar_auto_hide");
+    int bookmark_bar_auto_hide_delay =
+        JsonGetInt(req.body, "bookmark_bar_auto_hide_delay");
     int open_url_new_tab = JsonGetInt(req.body, "open_url_new_tab");
     int open_bookmark_new_tab = JsonGetInt(req.body, "open_bookmark_new_tab");
     bool new_tab_disable = JsonGetBool(req.body, "new_tab_disable");
@@ -580,6 +589,11 @@ std::string HandleRequest(const HttpRequest& req) {
         hover_tab ? L"1" : L"0", GetIniPath().c_str());
     WritePrivateProfileStringW(L"tabs", L"hover_tab_delay",
         std::to_wstring(hover_tab_delay).c_str(), GetIniPath().c_str());
+    WritePrivateProfileStringW(L"tabs", L"bookmark_bar_auto_hide",
+        bookmark_bar_auto_hide ? L"1" : L"0", GetIniPath().c_str());
+    WritePrivateProfileStringW(L"tabs", L"bookmark_bar_auto_hide_delay",
+        std::to_wstring(bookmark_bar_auto_hide_delay).c_str(),
+        GetIniPath().c_str());
     WritePrivateProfileStringW(L"tabs", L"open_url_new_tab",
         std::to_wstring(open_url_new_tab).c_str(), GetIniPath().c_str());
     WritePrivateProfileStringW(L"tabs", L"open_bookmark_new_tab",
@@ -661,6 +675,10 @@ std::string HandleRequest(const HttpRequest& req) {
     // the next GET /api/config (otherwise GetConfigJson reads stale values and
     // the frontend's refreshConfig() overwrites the user's change immediately).
     Config::Instance().ReloadConfig();
+
+    // Not on the next mouse move: the pointer rests on the config page's
+    // switch, so no WM_MOUSEMOVE arrives and the bar would stay hidden.
+    SyncBookmarkBarWithConfig();
 
     // If the ChromeGreen data directory changed, migrate the old data to it.
     Config::Instance().MigrateCgDataOnDirChange(

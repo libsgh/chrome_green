@@ -213,6 +213,12 @@ const translations = {
     hover_tab_delay: "Hover Delay (ms)",
     hover_tab_delay_desc:
       "Dwell delay in milliseconds (0-5000); used only when Hover to Activate is on",
+    bookmark_bar_auto_hide: "Auto-Hide Bookmark Bar",
+    bookmark_bar_auto_hide_desc:
+      "Show the bookmark bar only while the mouse is over the omnibox or the bar itself",
+    bookmark_bar_auto_hide_delay: "Bookmark Bar Hide Delay (ms)",
+    bookmark_bar_auto_hide_delay_desc:
+      "Delay before hiding after the mouse leaves (100-5000); used only when Auto-Hide Bookmark Bar is on",
     open_url_new_tab: "Open URL in New Tab",
     open_url_new_tab_desc:
       "Address-bar Enter opens the URL in a new tab: Off / Alt+Enter / Shift+Alt+Enter",
@@ -221,7 +227,7 @@ const translations = {
       "Bookmark opens in a new tab: Off / Middle+Shift click / Middle click",
     new_tab_disable: "Disable on Named Tabs",
     new_tab_disable_desc:
-      "Disable the above enhancements on tabs whose title contains any of the names below",
+      "Disable the new-tab enhancements (address bar, bookmarks, dropped links) on tabs whose title contains any of the names below",
     new_tab_disable_name: "Excluded Tab Names",
     new_tab_disable_name_desc:
       "Comma-separated tab titles to exclude (e.g. New Tab,新标签页)",
@@ -496,6 +502,12 @@ const translations = {
     hover_tab_delay: "悬停延迟（毫秒）",
     hover_tab_delay_desc:
       "停留激活的延迟毫秒数（0-5000），仅“悬停激活”开启时生效",
+    bookmark_bar_auto_hide: "自动隐藏书签栏",
+    bookmark_bar_auto_hide_desc:
+      "仅当鼠标位于搜索框或书签栏上时显示书签栏，移开后自动收起",
+    bookmark_bar_auto_hide_delay: "书签栏收起延迟（毫秒）",
+    bookmark_bar_auto_hide_delay_desc:
+      "鼠标移开后收起的延迟毫秒数（100-5000），仅“自动隐藏书签栏”开启时生效",
     open_url_new_tab: "地址栏回车新标签打开",
     open_url_new_tab_desc:
       "地址栏回车在新标签打开网址：关闭 / Alt+Enter / Shift+Alt+Enter",
@@ -503,7 +515,7 @@ const translations = {
     open_bookmark_new_tab_desc:
       "书签在新标签打开：关闭 / 中键+Shift 点击 / 中键点击",
     new_tab_disable: "对指定标签禁用",
-    new_tab_disable_desc: "对标题包含下列任一名称的标签禁用以上增强",
+    new_tab_disable_desc: "对标题包含下列任一名称的标签禁用新标签增强（地址栏、书签、拖拽链接）",
     new_tab_disable_name: "排除的标签名称",
     new_tab_disable_name_desc: "逗号分隔的标签标题，例如 New Tab,新标签页",
     mode_off: "关闭",

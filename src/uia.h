@@ -26,4 +26,18 @@ bool SelectTab(const TabHitResult& hit_result);
 [[nodiscard]] bool IsOnNewTab(HWND hwnd,
                               const std::vector<std::wstring>& extra_tab_names);
 
+// Bookmark-bar zone of one browser window in screen coordinates: the omnibox
+// row, plus the bookmark bar row while the bar is visible.
+struct BookmarkBarUi {
+  RECT toolbar_rect{};
+  std::optional<RECT> bar_rect;
+};
+
+[[nodiscard]] std::optional<BookmarkBarUi> GetBookmarkBarUi(HWND hwnd);
+[[nodiscard]] bool IsBookmarkBarVisible(HWND hwnd);
+[[nodiscard]] bool IsOnBookmarkBarZone(POINT pt);
+// Drop the cached resolution; call after toggling the bar so the next query
+// re-resolves whether it is on screen.
+void InvalidateBookmarkBarUi();
+
 #endif  // CHROME_GREEN_SRC_UIA_H_

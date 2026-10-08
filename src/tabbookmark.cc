@@ -2,6 +2,7 @@
 
 #include <windows.h>
 
+#include <atomic>
 #include <optional>
 
 #include "config.h"
@@ -202,6 +203,65 @@ void HandleHoverTab(const MOUSEHOOKSTRUCT* pmouse) {
   }
 }
 
+// --- bookmark bar auto-hide ---
+
+constexpr UINT_PTR kBookmarkBarTimerId = 0x626D4252;  // 'bmBR'
+HWND bookmark_bar_zone_root = nullptr;
+std::atomic<bool> bookmark_bar_auto_hide_was_on{false};
+
+void CALLBACK BookmarkBarTimerProc(HWND hwnd, UINT, UINT_PTR event_id,
+                                   DWORD) {
+  KillTimer(hwnd, event_id);
+
+  if (IsAnyMouseButtonPressed() || GetCapture() != nullptr) {
+    return;
+  }
+
+  POINT pt;
+  if (!GetCursorPos(&pt)) {
+    return;
+  }
+
+  const auto zone = GetBookmarkBarUi(hwnd);
+  if (!zone) {
+    return;
+  }
+  if (PtInRect(&zone->toolbar_rect, pt) ||
+      (zone->bar_rect && PtInRect(&*zone->bar_rect, pt))) {
+    // Cursor re-entered the zone before the timer fired.
+    return;
+  }
+
+  ExecuteCommand(IDC_BOOKMARK_BAR_SUBMENU_ALWAYS_HIDE, hwnd);
+  InvalidateBookmarkBarUi();
+}
+
+void HandleBookmarkBarAutoHide(const MOUSEHOOKSTRUCT* pmouse) {
+  SyncBookmarkBarWithConfig();
+  if (!config.IsBookmarkBarAutoHide()) {
+    return;
+  }
+
+  HWND root = nullptr;
+  if (IsChromeWindow(pmouse->hwnd)) {
+    root = GetAncestor(pmouse->hwnd, GA_ROOT);
+  }
+  const bool inside = root && IsOnBookmarkBarZone(pmouse->pt);
+
+  if (inside) {
+    KillTimer(root, kBookmarkBarTimerId);
+    if (!IsBookmarkBarVisible(root)) {
+      ExecuteCommand(IDC_BOOKMARK_BAR_SUBMENU_ALWAYS_SHOW, root);
+      InvalidateBookmarkBarUi();
+    }
+  } else if (bookmark_bar_zone_root) {
+    // Left the zone: arm a re-validating hide on the window left behind.
+    SetTimer(bookmark_bar_zone_root, kBookmarkBarTimerId,
+             config.GetBookmarkBarAutoHideDelay(), BookmarkBarTimerProc);
+  }
+  bookmark_bar_zone_root = inside ? root : nullptr;
+}
+
 // Use the mouse wheel to switch tabs
 bool HandleMouseWheel(LPARAM lParam, const MOUSEHOOKSTRUCT* pmouse) {
   if (!config.IsWheelTab() && !config.IsWheelTabWhenPressRightButton()) {
@@ -396,6 +456,7 @@ bool TabBookmarkMouseHandler(WPARAM wParam, LPARAM lParam) {
   switch (wParam) {
     case WM_MOUSEMOVE:
       HandleHoverTab(pmouse);
+      HandleBookmarkBarAutoHide(pmouse);
       return false;
     case WM_LBUTTONDOWN:
     case WM_NCLBUTTONDOWN:
@@ -592,6 +653,36 @@ bool TabBookmarkKeyboardHandler(WPARAM wParam, LPARAM lParam) {
 }
 
 }  // namespace
+
+// Undoes the "always hide" that auto-hide wrote. The command is window-scoped,
+// so every open browser window needs its own.
+void ShowBookmarkBarInAllWindows() {
+  EnumWindows(
+      [](HWND hwnd, LPARAM) -> BOOL {
+        if (IsChromeWindow(hwnd) && IsWindowVisible(hwnd)) {
+          ExecuteCommand(IDC_BOOKMARK_BAR_SUBMENU_ALWAYS_SHOW, hwnd);
+        }
+        return TRUE;
+      },
+      0);
+}
+
+void SyncBookmarkBarWithConfig() {
+  const bool enabled = config.IsBookmarkBarAutoHide();
+
+  if (!enabled) {
+    if (bookmark_bar_zone_root) {
+      KillTimer(bookmark_bar_zone_root, kBookmarkBarTimerId);
+      bookmark_bar_zone_root = nullptr;
+    }
+    // Only on the on->off edge, so the user's own Ctrl+Shift+B is not fought.
+    if (bookmark_bar_auto_hide_was_on.exchange(false)) {
+      ShowBookmarkBarInAllWindows();
+    }
+    return;
+  }
+  bookmark_bar_auto_hide_was_on.store(true);
+}
 
 void TabBookmark() {
   RegisterMouseHandler(TabBookmarkMouseHandler, HandlerPriority::kNormal);
